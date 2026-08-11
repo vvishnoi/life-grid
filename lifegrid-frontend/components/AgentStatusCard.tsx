@@ -18,7 +18,7 @@ const AGENT_ICONS: Record<AgentId, React.ElementType> = {
   communication_agent: MessageSquare,
 };
 
-// ── Status config ─────────────────────────────────────────────────────────────
+// ── Status config  test commit ─────────────────────────────────────────────────────────────
 type DotStatus = "idle" | "running" | "needs_approval" | "completed" | "rejected" | "pending";
 
 const STATUS_CFG: Record<DotStatus, { color: string; label: string; pulse: boolean }> = {
