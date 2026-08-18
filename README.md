@@ -1,5 +1,25 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Start here
+
+Building on this project (or picking it up for the first time)? Read
+**[docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)** first — it's
+structured in three parts on purpose: **Requirements** (what the
+hackathon track actually asks for), **Design** (the architecture and the
+reasoning behind it — why the multi-agent pipeline is
+Sequential-wrapping-Parallel, API contracts, sequence diagrams — written
+before any of it existed as code), and **Implementation** (what's
+actually built vs. simulated, and known limitations verified by running
+the system live, not just reading it).
+
+## Live Agents mode (real Google ADK + Vertex AI)
+
+The app defaults to a free, scripted demo. To run the real multi-agent
+pipeline, set up `.env.local` from `.env.local.example` and see
+**[docs/COST_OPTIMIZATION.md](docs/COST_OPTIMIZATION.md)** before deploying
+publicly — it covers scale-to-zero, instance caps, endpoint gating, budget
+alerts, and teardown steps.
+
 ## Getting Started
 
 First, run the development server:

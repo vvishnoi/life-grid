@@ -25,11 +25,12 @@ export interface TelemetryLog {
   timestamp: string;
   agentId: string;
   agentName: string;
-  type: 'orchestration' | 'thought' | 'tool_call' | 'security_inspection' | 'approval_required' | 'memory_update' | 'execution_success' | 'security_alert';
+  type: 'orchestration' | 'thought' | 'tool_call' | 'security_inspection' | 'approval_required' | 'memory_update' | 'execution_success' | 'security_alert' | 'error';
   message: string;
   metadata?: Record<string, any>;
   riskLevel?: RiskLevel;
   threatDetected?: boolean;
+  approvalItem?: ApprovalItem;
 }
 
 export interface ApprovalItem {
@@ -48,6 +49,12 @@ export interface ApprovalItem {
   reason: string;
   status: 'pending' | 'approved' | 'rejected';
   timestamp: string;
+  // Live mode only: groups approvals that were requested in the same ADK
+  // model turn. Gemini's function-calling protocol requires every function
+  // call from one turn to get a response before the conversation can
+  // continue, so these must all be resolved together in a single resume
+  // call — see src/app/api/approvals/route.ts.
+  batchId?: string;
 }
 
 export interface MemoryItem {

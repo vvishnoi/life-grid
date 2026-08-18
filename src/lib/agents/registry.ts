@@ -23,6 +23,27 @@ export const ENTERPRISE_AGENT_REGISTRY: AgentInfo[] = [
     riskProfile: 'Low Risk (Read & Orchestrate Only)'
   },
   {
+    id: 'security-agent',
+    name: 'Model Armor Security Scanner',
+    role: 'Prompt Injection & Threat Interception Gateway',
+    category: 'core',
+    description: 'Runs first in every pipeline. Scans user goals and external content for prompt injection, data exfiltration, and malicious payloads before any agent acts on them.',
+    icon: 'ShieldCheck',
+    status: 'idle',
+    capabilities: [
+      'Scans user prompts and external content via Model Armor',
+      'Neutralizes detected prompt injection payloads',
+      'Blocks downstream agents from acting on malicious input',
+      'Reports sanitized input for safe pipeline continuation'
+    ],
+    permissions: [
+      { domain: 'user_input', access: 'read', description: 'Reads raw user goal text before dispatch' },
+      { domain: 'agent_registry', access: 'none', description: 'Cannot modify other agents directly' },
+      { domain: 'financial_credentials', access: 'none', description: 'Zero-trust: No access to payment tokens' }
+    ],
+    riskProfile: 'Low Risk (Read & Inspect Only)'
+  },
+  {
     id: 'travel-agent',
     name: 'Travel & Lodging Agent',
     role: 'Flight & Hotel Research Specialist',
