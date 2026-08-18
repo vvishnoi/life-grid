@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Play, Sparkles, DollarSign, Compass, RefreshCw } from 'lucide-react';
+import { Play, Sparkles, DollarSign, Compass, RefreshCw, Radio, FileText } from 'lucide-react';
 import { GoalScenario } from '@/lib/types';
 
+export type OrchestrationMode = 'scripted' | 'live';
+
 interface GoalInputSectionProps {
-  onLaunchGoal: (prompt: string, budgetCap: number, scenarioId?: string) => void;
+  onLaunchGoal: (prompt: string, budgetCap: number, scenarioId: string | undefined, mode: OrchestrationMode) => void;
   isRunning: boolean;
 }
 
@@ -32,6 +34,7 @@ export function GoalInputSection({ onLaunchGoal, isRunning }: GoalInputSectionPr
   const [prompt, setPrompt] = useState(PRESET_SCENARIOS[0].prompt);
   const [budgetCap, setBudgetCap] = useState(4000);
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>('denver');
+  const [mode, setMode] = useState<OrchestrationMode>('scripted');
 
   const handleSelectScenario = (scenario: GoalScenario) => {
     setSelectedScenarioId(scenario.id);
@@ -42,7 +45,7 @@ export function GoalInputSection({ onLaunchGoal, isRunning }: GoalInputSectionPr
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!prompt.trim() || isRunning) return;
-    onLaunchGoal(prompt, budgetCap, selectedScenarioId);
+    onLaunchGoal(prompt, budgetCap, selectedScenarioId, mode);
   };
 
   return (
@@ -75,6 +78,38 @@ export function GoalInputSection({ onLaunchGoal, isRunning }: GoalInputSectionPr
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Live / Scripted Mode Toggle */}
+      <div className="flex items-center space-x-1 glass-card p-1 rounded-xl w-fit">
+        <button
+          type="button"
+          onClick={() => setMode('scripted')}
+          disabled={isRunning}
+          title="Replays a canned demo sequence — no GCP credentials required."
+          className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            mode === 'scripted'
+              ? 'bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-900 shadow-sm'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          <span>Scripted Demo</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('live')}
+          disabled={isRunning}
+          title="Runs the real Google ADK multi-agent pipeline via Vertex AI — requires GCP credentials."
+          className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            mode === 'live'
+              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+          }`}
+        >
+          <Radio className="w-3.5 h-3.5" />
+          <span>Live Agents</span>
+        </button>
       </div>
 
       {/* Input Form */}

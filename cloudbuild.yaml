@@ -21,6 +21,23 @@ steps:
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
+      # Cost controls — see docs/COST_OPTIMIZATION.md. Scale to zero when
+      # idle, cap concurrent instances, keep the footprint small.
+      - '--min-instances'
+      - '0'
+      - '--max-instances'
+      - '2'
+      - '--memory'
+      - '512Mi'
+      - '--cpu'
+      - '1'
+      # Live Agents mode (real ADK + Vertex AI pipeline) needs these; the
+      # deploy's runtime service account also needs roles/aiplatform.user.
+      # ${_DEMO_API_KEY} is a Cloud Build substitution (set it on the
+      # trigger, not committed here) — gates the paid /api/orchestrate
+      # "live" path so public traffic can't run up Vertex AI spend.
+      - '--set-env-vars'
+      - 'GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=us-central1,DEMO_API_KEY=${_DEMO_API_KEY}'
 
 images:
   - 'gcr.io/$PROJECT_ID/life-grid:$COMMIT_SHA'

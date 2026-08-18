@@ -15,7 +15,8 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   Users: <Users className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />,
   Calendar: <Calendar className="w-5 h-5 text-purple-600 dark:text-purple-400" />,
   Wallet: <Wallet className="w-5 h-5 text-amber-600 dark:text-amber-400" />,
-  ShoppingBag: <ShoppingBag className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+  ShoppingBag: <ShoppingBag className="w-5 h-5 text-rose-600 dark:text-rose-400" />,
+  ShieldCheck: <ShieldCheck className="w-5 h-5 text-rose-600 dark:text-rose-400" />
 };
 
 export function AgentRegistryView({ agents, activeAgentId }: AgentRegistryViewProps) {

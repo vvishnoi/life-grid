@@ -29,7 +29,7 @@ export function TelemetryConsole({ logs }: TelemetryConsoleProps) {
           </div>
         ) : (
           logs.map((log) => {
-            const isAlert = log.type === 'security_alert' || log.threatDetected;
+            const isAlert = log.type === 'security_alert' || log.type === 'error' || log.threatDetected;
             const isApproval = log.type === 'approval_required';
             const isMemory = log.type === 'memory_update';
             const isSuccess = log.type === 'execution_success';
