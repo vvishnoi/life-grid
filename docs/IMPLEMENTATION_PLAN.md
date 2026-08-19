@@ -376,7 +376,7 @@ aspirational.
 | Agent Identity | `beforeToolCallback` zero-trust check on every tool call | ❌ Gap (dead code) | `ZeroTrustGateway.validateAccess()` (`src/lib/gateway/zero-trust.ts`) is real, correct logic — but is never called from the live pipeline. Confirmed by grep: imported in `tools.ts`, unused (lint-flagged); its only caller (`orchestrator.ts`'s `checkZeroTrust`) is itself never called. |
 | Agent Gateway | One evaluator, one call site for all policy decisions | ✅ Mostly done | `PolicyEngine.evaluateAction()` (`src/lib/gateway/policy-engine.ts`) is that single call site, wired into `requestApproval` in `tools.ts`, verified live. "Unified routing" beyond policy (i.e. all agent↔tool traffic passing through one gateway layer) isn't a distinct component — it's inline in the tool. |
 | Model Armor | Prompt injection + tool poisoning + PII leaks, at two boundaries | ⚠️ Partial | `ModelArmorGateway.inspectInput()` covers prompt injection only, via regex, at the inbound boundary — real and verified live against an actual injection payload. Tool poisoning and PII-leak detection: not implemented. |
-| Agent Observability | Human console + OTel traces to Cloud Trace | ⚠️ Partial, high-leverage gap | The `TelemetryLog` SSE console is real and verified live. OTel: `@google/adk`'s own `base_agent.js` already wraps every agent invocation in a span (`tracer.startSpan('invoke_agent ...')`) — confirmed by reading the compiled source. ADK also ships `getGcpExporters()`/`setupOTel()` (`telemetry/google_cloud.ts`, `telemetry/setup.ts`) specifically for wiring those spans to Cloud Trace. **None of this is invoked anywhere in this app** — spans are created and discarded. This is the cheapest fix in this whole document: call ADK's own setup function once at startup. |
+| Agent Observability | Human console + OTel traces to Cloud Trace | ✅ **Fixed 2026-08-19** | The `TelemetryLog` SSE console is real and verified live. OTel: `src/instrumentation.ts` now calls ADK's own `getGcpExporters({enableTracing:true})` + `maybeSetOtelProviders()` once at server startup (Next.js's official `instrumentation.ts`/`register()` hook), gated on `GOOGLE_CLOUD_PROJECT` being set so scripted-mode-only dev is unaffected. Verified live by pulling the actual trace back out of Cloud Trace: full span tree `POST /api/orchestrate` → `invocation` → `invoke_agent LifeGridOrchestrator` → `invoke_agent SecurityScanner` → ..., with proper OTel GenAI semantic-convention attributes (`gen_ai.agent.name`, `gen_ai.conversation.id`, `gen_ai.operation.name`). Two cosmetic, confirmed-harmless log lines you'll see at startup/request time — see the comment block in `instrumentation.ts` for why: a deprecation warning on the trace exporter package (archival after 2026-10-30, fine through this hackathon), and an "Attempted duplicate registration" error from a redundant call inside ADK's own `maybeSetOtelProviders()` (the first registration wins and traces export correctly regardless). |
 
 ## 3.2 Universal must-haves — compliance
 
@@ -413,6 +413,7 @@ verified.
 5. **Full happy path confirmed**: fresh live run → real flight/hotel search → multiple simultaneous approvals → full-batch resume → `execution_success` completion, inspected at the raw SSE frame level.
 6. **Known, accepted limitation**: after a resumed approval, ADK 1.6.0's resumability re-enters `FinanceAgent` directly but does not hand control back to the outer `SequentialAgent` to run `PlanSynthesizer` — verified live (resume produces only `FinanceAgent` events, then stream ends). Mitigated by treating `FinanceAgent`'s own final reply as the success signal on resumed runs (`event-mapper.ts`, `isResume` flag), but the polished final itinerary from `PlanSynthesizer` is never shown after an approval. Not fixed further to avoid burning additional paid Vertex AI test cycles chasing an unverified fix mid-session.
 7. **Model upgrade verified live (2026-08-19)**: `gemini-2.5-flash` → `gemini-3.5-flash-lite` for hackathon compliance. Direct API probes against `us-central1` returned 404 for every `gemini-3.x` model tried; the `global` Vertex AI location resolved `gemini-3.5-flash` and `gemini-3.5-flash-lite` successfully. Confirmed the app itself works end-to-end against the new model+location combo, not just the raw API.
+8. **OTel → Cloud Trace verified live (2026-08-19)**: enabled the Cloud Trace API, wired `src/instrumentation.ts`, and confirmed by directly querying the Cloud Trace API afterward — pulled back a real trace with the full span hierarchy and OTel GenAI semantic-convention attributes. Note the read API (`GET .../traces`) has noticeable ingestion lag (a query immediately after the run came back empty; the same query a short while later returned the trace) — don't take an immediately-empty query as a failure signal.
 
 ## 3.5 Cost
 
@@ -426,6 +427,7 @@ Every live-mode test in §3.4 was a real, deliberately sparing paid call.
 ## 3.6 File map
 
 ```
+src/instrumentation.ts — Next.js startup hook, wires ADK's OTel spans to Cloud Trace
 src/lib/adk/
   agents.ts          — 7 LlmAgents + Sequential/ParallelAgent composition (Part 2 §2.3)
   tools.ts           — FunctionTool/LongRunningFunctionTool defs, wired to gateways
@@ -451,7 +453,7 @@ src/lib/adk-client.ts            — SSE frame parser used by the frontend
 Ordered by what blocks eligibility/judging, not by difficulty:
 
 1. ~~**Bump the model to Gemini 3.5+**~~ — ✅ done 2026-08-19, see §3.2.
-2. **Wire ADK's own OTel exporter to Cloud Trace** (`setupOTel()`/`getGcpExporters()`, call once at startup) — closes the Observability gap almost for free, since the spans already exist.
+2. ~~**Wire ADK's own OTel exporter to Cloud Trace**~~ — ✅ done 2026-08-19, see §3.1 (`src/instrumentation.ts`).
 3. **Deploy to Cloud Run for real** and record the demo video against the live URL, not localhost — biggest submission-readiness gap right now.
 4. **Wire `ZeroTrustGateway.validateAccess()` into tool execution** (e.g. as a `beforeToolCallback` in `tools.ts`) — closes the Agent Identity gap; the logic already exists.
 5. **Decide Memory Bank persistence**: real `@google-cloud/firestore` client, or be explicit in the submission text that it's in-memory today. Silence here is worse than either honest choice.
