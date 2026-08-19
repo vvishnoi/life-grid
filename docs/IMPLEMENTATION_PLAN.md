@@ -382,7 +382,7 @@ aspirational.
 
 | Requirement | Status |
 |---|---|
-| Gemini 3.5+ via Vertex AI | ❌ **Not compliant** — `src/lib/adk/agents.ts` hardcodes `gemini-2.5-flash`, an older model than required. One-line fix once a `gemini-3.5-flash`-family model id is confirmed available in your Vertex AI project/region — but must be fixed before submitting, it's a hard eligibility bar. |
+| Gemini 3.5+ via Vertex AI | ✅ **Fixed 2026-08-19** — `src/lib/adk/agents.ts` now uses `gemini-3.5-flash-lite`, confirmed live via a direct API probe and a full end-to-end app run. Requires `GOOGLE_CLOUD_LOCATION=global` — this model 404s on regional endpoints like `us-central1` in this project; the Cloud Run service's own deploy region is unaffected, it's an independent setting (`cloudbuild.yaml`). |
 | Google Agent Framework | ✅ `@google/adk@1.6.0` |
 | Google Cloud infra | ✅ Cloud Run (`cloudbuild.yaml`), not yet actually deployed — see §3.6 |
 
@@ -412,6 +412,7 @@ verified.
 4. **Found & fixed — batch approval protocol error.** Resolving one of several simultaneous `request_human_approval` calls in isolation produced a hard Gemini API error ("number of function response parts..."). Fixed via `ApprovalItem.batchId` + client-side batching in `page.tsx`.
 5. **Full happy path confirmed**: fresh live run → real flight/hotel search → multiple simultaneous approvals → full-batch resume → `execution_success` completion, inspected at the raw SSE frame level.
 6. **Known, accepted limitation**: after a resumed approval, ADK 1.6.0's resumability re-enters `FinanceAgent` directly but does not hand control back to the outer `SequentialAgent` to run `PlanSynthesizer` — verified live (resume produces only `FinanceAgent` events, then stream ends). Mitigated by treating `FinanceAgent`'s own final reply as the success signal on resumed runs (`event-mapper.ts`, `isResume` flag), but the polished final itinerary from `PlanSynthesizer` is never shown after an approval. Not fixed further to avoid burning additional paid Vertex AI test cycles chasing an unverified fix mid-session.
+7. **Model upgrade verified live (2026-08-19)**: `gemini-2.5-flash` → `gemini-3.5-flash-lite` for hackathon compliance. Direct API probes against `us-central1` returned 404 for every `gemini-3.x` model tried; the `global` Vertex AI location resolved `gemini-3.5-flash` and `gemini-3.5-flash-lite` successfully. Confirmed the app itself works end-to-end against the new model+location combo, not just the raw API.
 
 ## 3.5 Cost
 
@@ -449,7 +450,7 @@ src/lib/adk-client.ts            — SSE frame parser used by the frontend
 
 Ordered by what blocks eligibility/judging, not by difficulty:
 
-1. **Bump the model to Gemini 3.5+** (`src/lib/adk/agents.ts`) — hard eligibility requirement, currently non-compliant.
+1. ~~**Bump the model to Gemini 3.5+**~~ — ✅ done 2026-08-19, see §3.2.
 2. **Wire ADK's own OTel exporter to Cloud Trace** (`setupOTel()`/`getGcpExporters()`, call once at startup) — closes the Observability gap almost for free, since the spans already exist.
 3. **Deploy to Cloud Run for real** and record the demo video against the live URL, not localhost — biggest submission-readiness gap right now.
 4. **Wire `ZeroTrustGateway.validateAccess()` into tool execution** (e.g. as a `beforeToolCallback` in `tools.ts`) — closes the Agent Identity gap; the logic already exists.
