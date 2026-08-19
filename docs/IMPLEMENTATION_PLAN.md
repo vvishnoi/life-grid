@@ -371,7 +371,7 @@ aspirational.
 | Pillar | Design (§2.4) | Built? | Detail |
 |---|---|---|---|
 | Agent Registry | Single static directory, source of truth for identity/permissions | ✅ Done | `src/lib/agents/registry.ts`, `ENTERPRISE_AGENT_REGISTRY`, 7 agents, served via `GET /api/registry` |
-| Agent Runtime | Execution outlives a single HTTP connection | ⚠️ Partial | Real ADK `Runner`/`SequentialAgent`/`ParallelAgent` execution (`src/lib/adk/runner.ts`) — genuinely working, verified live. But bound to one SSE HTTP request's lifetime; not backed by Cloud Tasks/Pub-Sub as designed. |
+| Agent Runtime | Execution outlives a single HTTP connection | ⚠️ Partial | Real ADK `Runner`/`SequentialAgent`/`ParallelAgent` execution (`src/lib/adk/runner.ts`) — genuinely working, verified live, and now actually deployed to Cloud Run (`scripts/gcp-up.sh`), not just localhost. But still bound to one SSE HTTP request's lifetime; not backed by Cloud Tasks/Pub-Sub as designed. |
 | Memory Bank | Two distinct stores, cross-session one persistent | ❌ Gap | Session state works as designed (ADK, in-memory). But `src/lib/memory/firestore.ts` — the *cross-session* store — is a plain in-process JS array despite its name; resets on every restart. `@google-cloud/firestore` is installed and unused. |
 | Agent Identity | `beforeToolCallback` zero-trust check on every tool call | ❌ Gap (dead code) | `ZeroTrustGateway.validateAccess()` (`src/lib/gateway/zero-trust.ts`) is real, correct logic — but is never called from the live pipeline. Confirmed by grep: imported in `tools.ts`, unused (lint-flagged); its only caller (`orchestrator.ts`'s `checkZeroTrust`) is itself never called. |
 | Agent Gateway | One evaluator, one call site for all policy decisions | ✅ Mostly done | `PolicyEngine.evaluateAction()` (`src/lib/gateway/policy-engine.ts`) is that single call site, wired into `requestApproval` in `tools.ts`, verified live. "Unified routing" beyond policy (i.e. all agent↔tool traffic passing through one gateway layer) isn't a distinct component — it's inline in the tool. |
@@ -414,6 +414,7 @@ verified.
 6. **Known, accepted limitation**: after a resumed approval, ADK 1.6.0's resumability re-enters `FinanceAgent` directly but does not hand control back to the outer `SequentialAgent` to run `PlanSynthesizer` — verified live (resume produces only `FinanceAgent` events, then stream ends). Mitigated by treating `FinanceAgent`'s own final reply as the success signal on resumed runs (`event-mapper.ts`, `isResume` flag), but the polished final itinerary from `PlanSynthesizer` is never shown after an approval. Not fixed further to avoid burning additional paid Vertex AI test cycles chasing an unverified fix mid-session.
 7. **Model upgrade verified live (2026-08-19)**: `gemini-2.5-flash` → `gemini-3.5-flash-lite` for hackathon compliance. Direct API probes against `us-central1` returned 404 for every `gemini-3.x` model tried; the `global` Vertex AI location resolved `gemini-3.5-flash` and `gemini-3.5-flash-lite` successfully. Confirmed the app itself works end-to-end against the new model+location combo, not just the raw API.
 8. **OTel → Cloud Trace verified live (2026-08-19)**: enabled the Cloud Trace API, wired `src/instrumentation.ts`, and confirmed by directly querying the Cloud Trace API afterward — pulled back a real trace with the full span hierarchy and OTel GenAI semantic-convention attributes. Note the read API (`GET .../traces`) has noticeable ingestion lag (a query immediately after the run came back empty; the same query a short while later returned the trace) — don't take an immediately-empty query as a failure signal.
+9. **Real Cloud Run deploy, verified live (2026-08-19)**: `scripts/gcp-up.sh` builds, pushes to Artifact Registry, and deploys — found and fixed three real bugs surfaced only by actually running it: (a) `next.config.ts` was missing `output: 'standalone'`, so the Dockerfile's `.next/standalone` COPY step would have failed; (b) Cloud Build substitution defaults can't reference other custom substitutions or built-ins like `$PROJECT_ID` reliably — had to inline values instead of an `_IMAGE` indirection; (c) `$COMMIT_SHA` is only populated when Cloud Build is triggered from an actual git commit, not for `gcloud builds submit` from local source — switched to `$BUILD_ID`. Also found this project's Cloud Build runs as the default *compute* SA, not the legacy Cloud Build SA IAM guides usually assume — the script now grants both, since which one applies is a per-project setting. Post-deploy, verified all four cases against the live URL: homepage 200, scripted mode works (free), live mode correctly 401s without the `x-demo-key` header, and 200s with it.
 
 ## 3.5 Cost
 
@@ -446,7 +447,18 @@ src/app/api/orchestrate/route.ts — mode branch: scripted (old JSON) vs live (S
 src/app/api/approvals/route.ts   — mode branch: scripted stub vs live batch-resume
 src/app/page.tsx                 — frontend orchestration, batch-approval tracking
 src/lib/adk-client.ts            — SSE frame parser used by the frontend
+scripts/gcp-up.sh                — creates all GCP infra (APIs, Artifact Registry
+                                    repo, least-privilege runtime SA, IAM bindings)
+                                    and deploys via cloudbuild.yaml; idempotent
+scripts/gcp-down.sh              — tears it back down; --full also disables APIs
+                                    and deletes the runtime SA for a clean slate
 ```
+
+Currently deployed at `https://life-grid-q5fdvprapa-uc.a.run.app` (may change
+if the service is ever deleted and recreated rather than just redeployed —
+re-run `gcloud run services describe life-grid --region=us-central1
+--format="value(status.url)"` to confirm the current one before recording
+the demo video).
 
 ## 3.7 Priority fix list before submitting
 
@@ -454,7 +466,7 @@ Ordered by what blocks eligibility/judging, not by difficulty:
 
 1. ~~**Bump the model to Gemini 3.5+**~~ — ✅ done 2026-08-19, see §3.2.
 2. ~~**Wire ADK's own OTel exporter to Cloud Trace**~~ — ✅ done 2026-08-19, see §3.1 (`src/instrumentation.ts`).
-3. **Deploy to Cloud Run for real** and record the demo video against the live URL, not localhost — biggest submission-readiness gap right now.
+3. ~~**Deploy to Cloud Run for real**~~ — ✅ done 2026-08-19 via `scripts/gcp-up.sh`, see §3.1/§3.4. Record the demo video against the live URL, not localhost, still outstanding.
 4. **Wire `ZeroTrustGateway.validateAccess()` into tool execution** (e.g. as a `beforeToolCallback` in `tools.ts`) — closes the Agent Identity gap; the logic already exists.
 5. **Decide Memory Bank persistence**: real `@google-cloud/firestore` client, or be explicit in the submission text that it's in-memory today. Silence here is worse than either honest choice.
 6. Write the README spin-up section; adapt Part 2 §2.2's diagram for the submission's architecture-diagram deliverable.

@@ -83,10 +83,16 @@ demo, but don't mistake this gate for that.
 
 ## 8. Turn it off after the demo
 Record proof the agent worked on GCP (screen recording / screenshots of a
-live run), then tear down. **Manual steps, run yourself after recording:**
+live run), then tear down. **Status: applied** — `scripts/gcp-down.sh`
+replaces the manual `gcloud` commands:
 ```bash
-gcloud run services delete life-grid --region=us-central1
-gcloud services disable aiplatform.googleapis.com --project=<PROJECT_ID>
+./scripts/gcp-down.sh          # deletes the Cloud Run service + Artifact
+                                # Registry images, asks for confirmation first
+./scripts/gcp-down.sh --yes    # same, no prompt
+./scripts/gcp-down.sh --full   # also disables Vertex AI/Cloud Trace APIs and
+                                # deletes the runtime service account
 ```
-Locally, unset or delete `.env.local` if you want live mode off by default
-again (scripted mode remains fully functional either way).
+Bring it back with `./scripts/gcp-up.sh` (idempotent — safe to re-run,
+only recreates what's actually missing). Locally, unset or delete
+`.env.local` if you want live mode off by default again (scripted mode
+remains fully functional either way).
