@@ -1,11 +1,25 @@
+# Images live in Artifact Registry, not the deprecated gcr.io/Container
+# Registry — new GCP projects often can't provision GCR cleanly at all.
+# scripts/gcp-up.sh creates the "life-grid" repo this path references.
+#
+# Image tag uses $BUILD_ID, not $COMMIT_SHA — the latter is only populated
+# when Cloud Build is triggered from an actual git commit (a Source Repo /
+# GitHub trigger); it's empty for `gcloud builds submit` from local source,
+# which is how scripts/gcp-up.sh invokes this. $BUILD_ID is always set.
+#
+# us-central1 is repeated literally (not templated) in a few places below —
+# Cloud Build substitution defaults can't reference built-ins like
+# $PROJECT_ID reliably, so the image path is written inline per step instead
+# of through an indirection. Must match scripts/gcp-up.sh's AR_LOCATION.
+
 steps:
   # 1. Build the container image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/life-grid:$COMMIT_SHA', '.']
+    args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/life-grid/life-grid:$BUILD_ID', '.']
 
-  # 2. Push container to Container Registry / Artifact Registry
+  # 2. Push container to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/life-grid:$COMMIT_SHA']
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/life-grid/life-grid:$BUILD_ID']
 
   # 3. Deploy to Google Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -15,12 +29,17 @@ steps:
       - 'deploy'
       - 'life-grid'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/life-grid:$COMMIT_SHA'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/life-grid/life-grid:$BUILD_ID'
       - '--region'
       - 'us-central1'
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
+      # Dedicated least-privilege runtime identity (created by
+      # scripts/gcp-up.sh) instead of the broad default Compute Engine SA —
+      # matches the project's own zero-trust/Agent-Identity narrative.
+      - '--service-account'
+      - 'life-grid-runtime@$PROJECT_ID.iam.gserviceaccount.com'
       # Cost controls — see docs/COST_OPTIMIZATION.md. Scale to zero when
       # idle, cap concurrent instances, keep the footprint small.
       - '--min-instances'
@@ -39,11 +58,12 @@ steps:
       # both 404 on us-central1). These two locations are independent:
       # the container runs in us-central1, its outbound Vertex AI calls
       # target global.
-      # ${_DEMO_API_KEY} is a Cloud Build substitution (set it on the
-      # trigger, not committed here) — gates the paid /api/orchestrate
-      # "live" path so public traffic can't run up Vertex AI spend.
+      # ${_DEMO_API_KEY} is passed via scripts/gcp-up.sh's --substitutions
+      # flag (empty string if DEMO_API_KEY isn't set in the environment) —
+      # gates the paid /api/orchestrate "live" path so public traffic can't
+      # run up Vertex AI spend.
       - '--set-env-vars'
       - 'GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=global,DEMO_API_KEY=${_DEMO_API_KEY}'
 
 images:
-  - 'gcr.io/$PROJECT_ID/life-grid:$COMMIT_SHA'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/life-grid/life-grid:$BUILD_ID'

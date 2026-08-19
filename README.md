@@ -49,8 +49,20 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
+## Deploy to Google Cloud Run
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+This hackathon submission targets Google Cloud, not Vercel. Spin up
+everything (APIs, Artifact Registry, a least-privilege runtime service
+account, and the Cloud Run deploy itself) with one idempotent script:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+gcloud auth login
+gcloud config set project <your-project-id>
+DEMO_API_KEY=<a-secret-you-pick> ./scripts/gcp-up.sh
+```
+
+Tear it back down with `./scripts/gcp-down.sh` (asks for confirmation
+first; `--full` also disables the APIs and deletes the service account).
+See `docs/COST_OPTIMIZATION.md` for what each flag/setting is protecting
+against, and `docs/IMPLEMENTATION_PLAN.md` §3.4 for real bugs this deploy
+path hit and how they were fixed.
