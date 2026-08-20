@@ -427,26 +427,49 @@ Every live-mode test in §3.4 was a real, deliberately sparing paid call.
 
 ## 3.6 File map
 
+**Restructured 2026-08-19 into an npm workspaces monorepo** so the agent
+pipeline ships independently of this Next.js UI — see
+[packages/agent/README.md](../packages/agent/README.md) for how to drive it
+from a different frontend entirely. `apps/web` now depends on
+`@lifegrid/agent` like any npm package (via its compiled `dist/`, not its
+TS source), so a production build/Docker image must build `packages/agent`
+first — `npm run build` (root) does this in order. Each agent's system
+prompt lives in its own `instructions.md` next to its `agent.ts`, not
+inline in code.
+
 ```
-src/instrumentation.ts — Next.js startup hook, wires ADK's OTel spans to Cloud Trace
-src/lib/adk/
-  agents.ts          — 7 LlmAgents + Sequential/ParallelAgent composition (Part 2 §2.3)
-  tools.ts           — FunctionTool/LongRunningFunctionTool defs, wired to gateways
-  runner.ts          — Runner + InMemorySessionService singleton
-  event-mapper.ts     — raw ADK Event -> TelemetryLog/ApprovalItem (Part 2 §2.5)
-  stream-response.ts — SSE builder; the pause-detection fix lives here
-src/lib/gateway/
-  model-armor.ts     — prompt-injection regex scanner (real, partial — §3.1)
-  policy-engine.ts   — $100 threshold + travel-always-approve (real)
-  zero-trust.ts      — permission-check logic (real but unwired — §3.1)
-src/lib/memory/firestore.ts    — in-process array, NOT actually Firestore (§3.1)
-src/lib/agents/registry.ts     — ENTERPRISE_AGENT_REGISTRY (Agent Registry pillar)
-src/lib/agents/orchestrator.ts — OLD scripted/fake-delay demo path, kept as the
-                                  zero-cost default fallback (mode: 'scripted')
-src/app/api/orchestrate/route.ts — mode branch: scripted (old JSON) vs live (SSE)
-src/app/api/approvals/route.ts   — mode branch: scripted stub vs live batch-resume
-src/app/page.tsx                 — frontend orchestration, batch-approval tracking
-src/lib/adk-client.ts            — SSE frame parser used by the frontend
+packages/agent/                  — @lifegrid/agent: zero Next.js dependency
+  src/agents/<name>/{instructions.md, agent.ts} — one folder per LlmAgent
+  src/agents/index.ts             — Sequential/ParallelAgent composition (Part 2 §2.3)
+  src/tools.ts                    — FunctionTool/LongRunningFunctionTool defs, wired to gateways
+  src/runner.ts                   — Runner + InMemorySessionService singleton
+  src/event-mapper.ts             — raw ADK Event -> TelemetryLog/ApprovalItem (Part 2 §2.5)
+  src/stream-response.ts          — SSE builder; the pause-detection fix lives here
+  src/approvals.ts                — builds the ADK resume message for a batch of decisions
+  src/gateway/
+    model-armor.ts                — prompt-injection regex scanner (real, partial — §3.1)
+    policy-engine.ts              — $100 threshold + travel-always-approve (real)
+    zero-trust.ts                 — permission-check logic (real but unwired — §3.1)
+  src/memory/firestore.ts         — in-process array, NOT actually Firestore (§3.1)
+  src/registry.ts                 — ENTERPRISE_AGENT_REGISTRY (Agent Registry pillar)
+  src/scripted-demo.ts            — OLD scripted/fake-delay demo path (renamed from
+                                     orchestrator.ts — its old class name collided
+                                     conceptually with the real ADK orchestrator),
+                                     kept as the zero-cost default fallback (mode: 'scripted')
+  src/index.ts                    — full server-side public API (imports @google/adk)
+  src/client.ts                   — client-bundle-safe subset: types + registry only,
+                                     no ADK/gRPC/OTel — import this from React components
+apps/web/                        — @lifegrid/web: the Next.js UI
+  src/instrumentation.ts          — Next.js startup hook, wires ADK's OTel spans to Cloud Trace
+  src/app/api/orchestrate/route.ts — mode branch: scripted (old JSON) vs live (SSE)
+  src/app/api/approvals/route.ts   — mode branch: scripted stub vs live batch-resume
+  src/app/page.tsx                 — frontend orchestration, batch-approval tracking
+  src/lib/adk-client.ts            — SSE frame parser used by the frontend
+  next.config.ts                   — outputFileTracingRoot/-Includes for the monorepo;
+                                      the latter exists because Turbopack's tracer can't
+                                      see instructions.md's runtime fs.readFileSync — see
+                                      that file's comment, confirmed live via a standalone
+                                      server smoke test (ENOENT without it)
 scripts/gcp-up.sh                — creates all GCP infra (APIs, Artifact Registry
                                     repo, least-privilege runtime SA, IAM bindings)
                                     and deploys via cloudbuild.yaml; idempotent
@@ -458,7 +481,12 @@ Currently deployed at `https://life-grid-q5fdvprapa-uc.a.run.app` (may change
 if the service is ever deleted and recreated rather than just redeployed —
 re-run `gcloud run services describe life-grid --region=us-central1
 --format="value(status.url)"` to confirm the current one before recording
-the demo video).
+the demo video). **Not yet redeployed since the monorepo restructure** —
+Dockerfile/cloudbuild.yaml were updated and the exact standalone-output path
+they depend on was verified locally (`node .next/standalone/apps/web/server.js`
+smoke-tested against `/`, `/api/registry`, `/api/memory`, and a scripted
+`/api/orchestrate` run), but a real `gcloud builds submit` re-run is still
+outstanding before the next demo recording.
 
 ## 3.7 Priority fix list before submitting
 

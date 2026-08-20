@@ -1,35 +1,16 @@
 {
   "name": "life-grid",
-  "version": "0.1.0",
   "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "@google-cloud/firestore": "^9.0.0",
-    "@google/adk": "^1.6.0",
-    "@google/genai": "^2.17.0",
-    "clsx": "^2.1.1",
-    "framer-motion": "^13.1.0",
-    "googleapis": "^174.0.1",
-    "lucide-react": "^1.31.0",
-    "next": "16.3.0",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "tailwind-merge": "^3.6.0",
-    "zod": "^4.4.3"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.3.0",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "postinstall": "npm run build -w packages/agent",
+    "dev": "npm run dev -w apps/web",
+    "build": "npm run build -w packages/agent && npm run build -w apps/web",
+    "start": "npm run start -w apps/web",
+    "lint": "npm run lint -w apps/web"
   }
 }

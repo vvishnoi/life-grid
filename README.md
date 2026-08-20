@@ -1,4 +1,7 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+An npm workspaces monorepo with two packages:
+
+- **[packages/agent](packages/agent)** — `@lifegrid/agent`: the entire multi-agent pipeline (Google ADK agents, tools, governance gateways, memory). Zero dependency on Next.js — usable standalone from any Node app. Start here if you want the agent logic, not this UI.
+- **[apps/web](apps/web)** — `@lifegrid/web`: the Next.js frontend (bootstrapped with `create-next-app`) that drives it. Everything below assumes you're working from the repo root, which runs commands against this app via npm workspaces scripts.
 
 ## Start here
 
@@ -15,28 +18,28 @@ the system live, not just reading it).
 ## Live Agents mode (real Google ADK + Vertex AI)
 
 The app defaults to a free, scripted demo. To run the real multi-agent
-pipeline, set up `.env.local` from `.env.local.example` and see
-**[docs/COST_OPTIMIZATION.md](docs/COST_OPTIMIZATION.md)** before deploying
-publicly — it covers scale-to-zero, instance caps, endpoint gating, budget
-alerts, and teardown steps.
+pipeline, set up `apps/web/.env.local` from `apps/web/.env.local.example`
+and see **[docs/COST_OPTIMIZATION.md](docs/COST_OPTIMIZATION.md)** before
+deploying publicly — it covers scale-to-zero, instance caps, endpoint
+gating, budget alerts, and teardown steps.
 
 ## Getting Started
 
-First, run the development server:
+From the repo root (npm workspaces resolves `@lifegrid/agent` for the web
+app automatically — no separate build step needed for `dev`):
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+You can start editing the page by modifying `apps/web/src/app/page.tsx`. The page auto-updates as you edit the file.
+
+`npm run build` (root) builds `packages/agent` first, then `apps/web` —
+required for a production build/Docker image, since `apps/web` imports the
+package's compiled `dist/`, not its TypeScript source.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
