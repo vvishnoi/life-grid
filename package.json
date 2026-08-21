@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "postinstall": "npm run build -w packages/agent",
+    "postinstall": "if [ -f packages/agent/tsconfig.json ]; then npm run build -w packages/agent; fi",
     "dev": "npm run dev -w apps/web",
     "build": "npm run build -w packages/agent && npm run build -w apps/web",
     "start": "npm run start -w apps/web",
