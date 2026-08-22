@@ -5,6 +5,7 @@
 # Usage:
 #   ./scripts/gcp-up.sh
 #   PROJECT_ID=my-project DEMO_API_KEY=secret123 ./scripts/gcp-up.sh
+#   GOOGLE_OAUTH_CLIENT_ID=... GOOGLE_OAUTH_CLIENT_SECRET=... ./scripts/gcp-up.sh
 #
 # See docs/COST_OPTIMIZATION.md and docs/IMPLEMENTATION_PLAN.md for why
 # each piece exists. Pair with ./scripts/gcp-down.sh to tear back down.
@@ -19,6 +20,13 @@ SERVICE_NAME="life-grid"
 RUNTIME_SA_NAME="life-grid-runtime"
 RUNTIME_SA_EMAIL="${RUNTIME_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 DEMO_API_KEY="${DEMO_API_KEY:-}"
+# "Sign in with Google" for real Calendar access (packages/agent/src/tools.ts).
+# The OAuth 2.0 Client ID itself has no gcloud-creatable equivalent — see
+# apps/web/.env.local.example for how to create one in Console.
+GOOGLE_OAUTH_CLIENT_ID="${GOOGLE_OAUTH_CLIENT_ID:-}"
+GOOGLE_OAUTH_CLIENT_SECRET="${GOOGLE_OAUTH_CLIENT_SECRET:-}"
+OAUTH_CLIENT_SECRET_NAME="lifegrid-google-oauth-client-secret"
+AUTH_SECRET_NAME="lifegrid-auth-secret"
 
 if [[ -z "$PROJECT_ID" ]]; then
   echo "No project set. Run 'gcloud config set project <id>' or pass PROJECT_ID=<id>." >&2
@@ -33,6 +41,15 @@ if [[ -z "$DEMO_API_KEY" ]]; then
   echo
 fi
 
+if [[ -z "$GOOGLE_OAUTH_CLIENT_ID" || -z "$GOOGLE_OAUTH_CLIENT_SECRET" ]]; then
+  echo "NOTE: GOOGLE_OAUTH_CLIENT_ID/GOOGLE_OAUTH_CLIENT_SECRET not set — the"
+  echo "      deployed app will run without 'Sign in with Google', so"
+  echo "      CalendarAgent falls back to simulated data for everyone (still"
+  echo "      fully functional, just not real). See"
+  echo "      apps/web/.env.local.example for how to create these."
+  echo
+fi
+
 echo "==> Project: $PROJECT_ID | Cloud Run region: $REGION | Artifact Registry: $AR_LOCATION"
 
 echo "==> Enabling required APIs (idempotent)..."
@@ -44,6 +61,8 @@ gcloud services enable \
   artifactregistry.googleapis.com \
   iam.googleapis.com \
   firestore.googleapis.com \
+  secretmanager.googleapis.com \
+  calendar-json.googleapis.com \
   --project="$PROJECT_ID"
 
 echo "==> Ensuring a Firestore (Native mode) database exists in $REGION..."
@@ -59,6 +78,42 @@ if ! gcloud firestore databases describe --database="(default)" --project="$PROJ
 else
   echo "    already exists, skipping creation"
 fi
+
+echo "==> Ensuring the Auth.js session-signing secret exists: $AUTH_SECRET_NAME"
+# Reused across redeploys (not regenerated) so existing signed-in users'
+# sessions don't all invalidate on every redeploy.
+if ! gcloud secrets describe "$AUTH_SECRET_NAME" --project="$PROJECT_ID" >/dev/null 2>&1; then
+  openssl rand -base64 32 | gcloud secrets create "$AUTH_SECRET_NAME" \
+    --project="$PROJECT_ID" --data-file=- --replication-policy=automatic
+else
+  echo "    already exists, skipping creation"
+fi
+
+echo "==> Ensuring the Google OAuth client secret exists in Secret Manager: $OAUTH_CLIENT_SECRET_NAME"
+# Always created (even as an empty placeholder if GOOGLE_OAUTH_CLIENT_SECRET
+# wasn't passed this run) — cloudbuild.yaml's --set-secrets reference needs
+# the secret to exist regardless; an empty value just means Google sign-in
+# won't actually work, not that the deploy fails.
+if ! gcloud secrets describe "$OAUTH_CLIENT_SECRET_NAME" --project="$PROJECT_ID" >/dev/null 2>&1; then
+  printf '%s' "$GOOGLE_OAUTH_CLIENT_SECRET" | gcloud secrets create "$OAUTH_CLIENT_SECRET_NAME" \
+    --project="$PROJECT_ID" --data-file=- --replication-policy=automatic
+elif [[ -n "$GOOGLE_OAUTH_CLIENT_SECRET" ]]; then
+  # New version each run a real value is supplied — lets rotating the
+  # secret just mean re-running this script with the new value.
+  printf '%s' "$GOOGLE_OAUTH_CLIENT_SECRET" | gcloud secrets versions add "$OAUTH_CLIENT_SECRET_NAME" \
+    --project="$PROJECT_ID" --data-file=-
+else
+  echo "    already exists, skipping (no new value passed this run)"
+fi
+
+echo "==> Granting the runtime SA access to the secrets it needs (idempotent)..."
+for secret in "$AUTH_SECRET_NAME" "$OAUTH_CLIENT_SECRET_NAME"; do
+  gcloud secrets add-iam-policy-binding "$secret" \
+    --project="$PROJECT_ID" \
+    --member="serviceAccount:${RUNTIME_SA_EMAIL}" \
+    --role="roles/secretmanager.secretAccessor" \
+    --quiet >/dev/null
+done
 
 echo "==> Ensuring Artifact Registry repo exists: $AR_REPO ($AR_LOCATION)"
 if ! gcloud artifacts repositories describe "$AR_REPO" \
@@ -133,7 +188,7 @@ echo "==> Building image and deploying to Cloud Run (this runs Docker build + pu
 gcloud builds submit \
   --project="$PROJECT_ID" \
   --config=cloudbuild.yaml \
-  --substitutions="_DEMO_API_KEY=${DEMO_API_KEY}" \
+  --substitutions="_DEMO_API_KEY=${DEMO_API_KEY},_GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}" \
   .
 
 echo

@@ -61,9 +61,19 @@ steps:
       # ${_DEMO_API_KEY} is passed via scripts/gcp-up.sh's --substitutions
       # flag (empty string if DEMO_API_KEY isn't set in the environment) —
       # gates the paid /api/orchestrate "live" path so public traffic can't
-      # run up Vertex AI spend.
+      # run up Vertex AI spend. AUTH_TRUST_HOST is required for Auth.js
+      # (apps/web/src/auth.ts) behind Cloud Run's proxy — see that file's
+      # comment. GOOGLE_OAUTH_CLIENT_ID is a public identifier (sent to the
+      # browser as part of the OAuth redirect anyway), safe as a plain env
+      # var — its secret half is not, see --set-secrets below.
       - '--set-env-vars'
-      - 'GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=global,DEMO_API_KEY=${_DEMO_API_KEY}'
+      - 'GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=global,DEMO_API_KEY=${_DEMO_API_KEY},AUTH_TRUST_HOST=true,GOOGLE_OAUTH_CLIENT_ID=${_GOOGLE_OAUTH_CLIENT_ID}'
+      # Real credentials (session-signing key, OAuth client secret) — via
+      # Secret Manager, not plaintext, unlike DEMO_API_KEY above (that one's
+      # just an anti-abuse deterrent; these can forge sessions or impersonate
+      # the app to Google). Both secrets are provisioned by scripts/gcp-up.sh.
+      - '--set-secrets'
+      - 'AUTH_SECRET=lifegrid-auth-secret:latest,GOOGLE_OAUTH_CLIENT_SECRET=lifegrid-google-oauth-client-secret:latest'
 
 images:
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/life-grid/life-grid:$BUILD_ID'

@@ -1,4 +1,5 @@
 import { FunctionTool, LongRunningFunctionTool, type Context } from '@google/adk';
+import { google } from 'googleapis';
 import { z } from 'zod';
 import { ModelArmorGateway } from './gateway/model-armor.js';
 import { PolicyEngine } from './gateway/policy-engine.js';
@@ -287,8 +288,74 @@ export const searchHotels = new FunctionTool({
 });
 
 // ─────────────────────────────────────────────────────
-// 5. CALENDAR TOOLS (Simulated)
+// 5. CALENDAR TOOLS (real when the user has connected Google Calendar,
+//    simulated otherwise)
 // ─────────────────────────────────────────────────────
+
+async function checkRealGoogleCalendar(
+  accessToken: string,
+  startDate: string,
+  endDate: string
+): Promise<Record<string, unknown>> {
+  const auth = new google.auth.OAuth2();
+  auth.setCredentials({ access_token: accessToken });
+  const calendar = google.calendar({ version: 'v3', auth });
+
+  // timeMax is exclusive, so push it a day past endDate to include events
+  // that start on endDate itself.
+  const timeMax = new Date(endDate);
+  timeMax.setDate(timeMax.getDate() + 1);
+
+  const res = await calendar.events.list({
+    calendarId: 'primary',
+    timeMin: new Date(startDate).toISOString(),
+    timeMax: timeMax.toISOString(),
+    singleEvents: true,
+    orderBy: 'startTime',
+  });
+
+  const events = res.data.items ?? [];
+  const existingEvents = events.map((event) => ({
+    title: event.summary || '(untitled event)',
+    date: (event.start?.date || event.start?.dateTime || startDate).slice(0, 10),
+    time: event.start?.dateTime
+      ? new Date(event.start.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : 'All day',
+    recurring: Boolean(event.recurringEventId),
+    // Real events carry no "flexible" signal — never claim reschedulability
+    // we can't actually know.
+    flexible: false,
+  }));
+
+  return {
+    dateRange: { startDate, endDate },
+    isAvailable: existingEvents.length === 0,
+    existingEvents,
+    conflicts: [],
+    recommendation:
+      existingEvents.length === 0
+        ? `Calendar is clear for ${startDate} to ${endDate}.`
+        : `${existingEvents.length} existing event(s) found in this range — review for conflicts.`,
+    // Read-only scope (calendar.readonly) — this tool never writes to the
+    // user's real calendar, unlike the simulated fallback's narrative below.
+    tentativeHoldsPlaced: false,
+    note: 'Real Google Calendar data (read-only, connected via Google sign-in).',
+  };
+}
+
+function simulatedCalendarCheck(startDate: string, endDate: string, reason: string): Record<string, unknown> {
+  return {
+    dateRange: { startDate, endDate },
+    isAvailable: true,
+    existingEvents: [
+      { title: 'Team Standup', date: startDate, time: '09:00', recurring: true, flexible: true },
+    ],
+    conflicts: [],
+    recommendation: `Calendar is mostly clear for ${startDate} to ${endDate}. One recurring standup can be rescheduled.`,
+    tentativeHoldsPlaced: true,
+    note: `Simulated data (${reason}) — architecture supports real Google Calendar API integration.`,
+  };
+}
 
 export const checkCalendarAvailability = new FunctionTool({
   name: 'check_calendar_availability',
@@ -298,19 +365,18 @@ export const checkCalendarAvailability = new FunctionTool({
     startDate: z.string().describe('Start date in YYYY-MM-DD format'),
     endDate: z.string().describe('End date in YYYY-MM-DD format'),
   }),
-  execute: async ({ startDate, endDate }) => {
-    // Simulated calendar — architecture supports real Google Calendar API
-    return {
-      dateRange: { startDate, endDate },
-      isAvailable: true,
-      existingEvents: [
-        { title: 'Team Standup', date: startDate, time: '09:00', recurring: true, flexible: true },
-      ],
-      conflicts: [],
-      recommendation: `Calendar is mostly clear for ${startDate} to ${endDate}. One recurring standup can be rescheduled.`,
-      tentativeHoldsPlaced: true,
-      note: 'Simulated data — architecture supports real Google Calendar API integration',
-    };
+  execute: async ({ startDate, endDate }, tool_context?: Context) => {
+    const accessToken = tool_context?.state?.get<string>('googleCalendarAccessToken');
+    if (!accessToken) {
+      return simulatedCalendarCheck(startDate, endDate, 'no Google Calendar connected');
+    }
+    try {
+      return await checkRealGoogleCalendar(accessToken, startDate, endDate);
+    } catch {
+      // Expired token, revoked consent, API hiccup — never fail the whole
+      // agent turn over a calendar check; degrade to simulated instead.
+      return simulatedCalendarCheck(startDate, endDate, 'Google Calendar request failed');
+    }
   },
 });
 
