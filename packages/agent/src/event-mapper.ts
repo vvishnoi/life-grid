@@ -164,7 +164,16 @@ export function mapAdkEventToTelemetryLogs(event: Event, sessionId: string, isRe
         const result = structured.result;
         const response = (result.response ?? {}) as Record<string, unknown>;
 
-        if (result.name === 'scan_with_model_armor') {
+        if (response.zeroTrustDenied) {
+          logs.push(
+            baseLog(event, {
+              type: 'security_alert',
+              message: `ZERO-TRUST BLOCKED: ${(response.reason as string) || `Access to '${result.name}' denied.`}`,
+              riskLevel: 'high',
+              threatDetected: true,
+            })
+          );
+        } else if (result.name === 'scan_with_model_armor') {
           const isSafe = response.isSafe !== false;
           logs.push(
             isSafe

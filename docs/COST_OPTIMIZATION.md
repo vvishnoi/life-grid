@@ -9,11 +9,12 @@ actions aren't something an agent should perform unattended).
 ## 1. Use Gemini Flash first
 Reserve Pro-tier models strictly for complex final reasoning; default
 everything else to Flash.
-**Status: applied.** `src/lib/adk/agents.ts` hardcodes
-`gemini-2.5-flash` for all seven agents (security scanner, travel, family,
-calendar, shopping, finance, synthesizer). Don't swap any of these to a Pro
-model without a specific reason — if one agent's output quality genuinely
-needs it, upgrade only that one agent, not the whole pipeline.
+**Status: applied.** `packages/agent/src/model.ts` sets one `geminiModel`
+constant (`gemini-3.5-flash-lite` as of 2026-08-19) used by all seven
+agents (security scanner, travel, family, calendar, shopping, finance,
+synthesizer). Don't swap any of these to a Pro model without a specific
+reason — if one agent's output quality genuinely needs it, upgrade only
+that one agent, not the whole pipeline.
 
 ## 2. Scale to zero
 Keep `min-instances` at 0 so Cloud Run doesn't bill for idle time.
@@ -40,13 +41,19 @@ always-on cluster.
 ## 5. Keep storage footprints light
 Store only essential state, compress long-term memories, clean up temp
 artifacts.
-**Status: already minimal.** The "Memory Bank" (`src/lib/memory/firestore.ts`)
-is an in-process array, not a live Firestore connection — zero storage
-cost as shipped. ADK session state (`src/lib/adk/runner.ts`) uses
-`InMemorySessionService` — also zero storage cost, but also means sessions
-vanish on every restart/redeploy (acceptable for a demo). If either of
-these gets swapped for real Firestore/`DatabaseSessionService` later, add
-TTL-based cleanup rather than letting sessions/memories accumulate forever.
+**Status: minimal, real Firestore only where it's deployed.** The Memory
+Bank (`packages/agent/src/memory/`) is dual-backend as of 2026-08-22: a
+plain in-process array locally (zero storage cost, resets on restart), and
+real `@google-cloud/firestore` only when actually running on Cloud Run
+(`K_SERVICE` present — see `memory/index.ts`). A handful of preference
+records is a few KB, nowhere near Firestore's free tier (1 GiB stored,
+50K reads + 20K writes/day) — effectively $0 for this app's demo-scale
+usage. No TTL/cleanup added since volume is expected to stay tiny, but
+worth revisiting if the Memory Bank starts accumulating real usage beyond
+the demo. ADK session state (`packages/agent/src/runner.ts`) still uses
+`InMemorySessionService` — zero storage cost, but also means sessions
+vanish on every restart/redeploy (acceptable for a demo; see the Agent
+Runtime gap in `docs/IMPLEMENTATION_PLAN.md` §3.1).
 
 ## 6. Set budget alerts
 Turn on billing alerts so you get an email before crossing your target

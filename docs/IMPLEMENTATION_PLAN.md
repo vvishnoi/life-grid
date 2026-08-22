@@ -138,16 +138,18 @@ flowchart TB
     RUNNER --> PIPE
     PIPE --> MA
     PIPE --> PE
-    PIPE -.should call.-> ZT
+    PIPE --> ZT
     PIPE --> SESS
     PIPE --> MB
     REG --> REGISTRY
     PIPE --> VERTEX
-    PIPE -.should export.-> TRACE
+    PIPE --> TRACE
 ```
 
-Dotted lines mark connections the *design* calls for that aren't wired up
-yet — see Part 3 for exactly which.
+(As of 2026-08-22 every connection above is actually wired — ZT and TRACE
+were the last two dotted-line gaps, closed in §3.1. Kept as a plain
+flowchart rather than pruning the dotted-line convention entirely, in case
+a future gap needs marking the same way.)
 
 ## 2.3 Multi-agent orchestration design
 
@@ -370,11 +372,11 @@ aspirational.
 
 | Pillar | Design (§2.4) | Built? | Detail |
 |---|---|---|---|
-| Agent Registry | Single static directory, source of truth for identity/permissions | ✅ Done | `src/lib/agents/registry.ts`, `ENTERPRISE_AGENT_REGISTRY`, 7 agents, served via `GET /api/registry` |
-| Agent Runtime | Execution outlives a single HTTP connection | ⚠️ Partial | Real ADK `Runner`/`SequentialAgent`/`ParallelAgent` execution (`src/lib/adk/runner.ts`) — genuinely working, verified live, and now actually deployed to Cloud Run (`scripts/gcp-up.sh`), not just localhost. But still bound to one SSE HTTP request's lifetime; not backed by Cloud Tasks/Pub-Sub as designed. |
-| Memory Bank | Two distinct stores, cross-session one persistent | ❌ Gap | Session state works as designed (ADK, in-memory). But `src/lib/memory/firestore.ts` — the *cross-session* store — is a plain in-process JS array despite its name; resets on every restart. `@google-cloud/firestore` is installed and unused. |
-| Agent Identity | `beforeToolCallback` zero-trust check on every tool call | ❌ Gap (dead code) | `ZeroTrustGateway.validateAccess()` (`src/lib/gateway/zero-trust.ts`) is real, correct logic — but is never called from the live pipeline. Confirmed by grep: imported in `tools.ts`, unused (lint-flagged); its only caller (`orchestrator.ts`'s `checkZeroTrust`) is itself never called. |
-| Agent Gateway | One evaluator, one call site for all policy decisions | ✅ Mostly done | `PolicyEngine.evaluateAction()` (`src/lib/gateway/policy-engine.ts`) is that single call site, wired into `requestApproval` in `tools.ts`, verified live. "Unified routing" beyond policy (i.e. all agent↔tool traffic passing through one gateway layer) isn't a distinct component — it's inline in the tool. |
+| Agent Registry | Single static directory, source of truth for identity/permissions | ✅ Done | `packages/agent/src/registry.ts`, `ENTERPRISE_AGENT_REGISTRY`, 7 agents, served via `GET /api/registry` |
+| Agent Runtime | Execution outlives a single HTTP connection | ⚠️ Partial | Real ADK `Runner`/`SequentialAgent`/`ParallelAgent` execution (`packages/agent/src/runner.ts`) — genuinely working, verified live, and now actually deployed to Cloud Run (`scripts/gcp-up.sh`), not just localhost. But still bound to one SSE HTTP request's lifetime; not backed by Cloud Tasks/Pub-Sub as designed. |
+| Memory Bank | Two distinct stores, cross-session one persistent | ✅ **Fixed 2026-08-22** | Session state unchanged (ADK, in-memory). The cross-session store is now dual-backend: `packages/agent/src/memory/in-memory.ts` (unchanged in-process array) for local dev, `packages/agent/src/memory/firestore.ts` (real `@google-cloud/firestore`, previously installed and unused) when actually deployed. Selected automatically by `packages/agent/src/memory/index.ts` on `K_SERVICE` — Cloud Run's own auto-injected env var, present only when actually deployed there, deliberately not reusing `GOOGLE_CLOUD_PROJECT`/live-mode since that's a separate axis (can be set locally too). Override via `MEMORY_BANK_BACKEND=memory\|firestore`. Verified live against the real Firestore database (seed → add → delete → re-read, correct counts each step) before ever touching Cloud Run. `scripts/gcp-up.sh` now provisions the Firestore API, a Native-mode database, and `roles/datastore.user` for the runtime SA. |
+| Agent Identity | `beforeToolCallback` zero-trust check on every tool call | ✅ **Fixed 2026-08-22** | `ZeroTrustGateway.validateAccess()` (`packages/agent/src/gateway/zero-trust.ts`) is now wired as a real ADK `beforeToolCallback` on every LlmAgent that has tools (`agents/*/agent.ts`), via `createZeroTrustCallback(agentId)` + a `TOOL_ACCESS_REQUIREMENTS` map from tool name to registry domain/access — fail-closed by default (an undeclared tool is denied, not silently allowed). Fixed a real registry gap this surfaced: `travel-agent` called `read_memory_bank` but had no `memory_bank` permission entry (it had an orphan `user_preferences` domain no tool ever checked) — renamed to `memory_bank: read` so real enforcement doesn't break existing verified behavior. A denial short-circuits the tool call (ADK returns the callback's Record instead of running it) and surfaces in telemetry as a `security_alert` (`event-mapper.ts`), not a generic tool result. Verified two ways: (1) direct unit-style calls against `createZeroTrustCallback` confirming both allow and deny paths, including fail-closed on an unknown tool name; (2) a real live Vertex AI run afterward — zero `zeroTrustDenied` responses, all 9 tools across every agent executed normally, pipeline completed to a real approval pause. |
+| Agent Gateway | One evaluator, one call site for all policy decisions | ✅ Mostly done | `PolicyEngine.evaluateAction()` (`packages/agent/src/gateway/policy-engine.ts`) is that single call site, wired into `requestApproval` in `tools.ts`, verified live. "Unified routing" beyond policy (i.e. all agent↔tool traffic passing through one gateway layer) isn't a distinct component — it's inline in the tool. |
 | Model Armor | Prompt injection + tool poisoning + PII leaks, at two boundaries | ⚠️ Partial | `ModelArmorGateway.inspectInput()` covers prompt injection only, via regex, at the inbound boundary — real and verified live against an actual injection payload. Tool poisoning and PII-leak detection: not implemented. |
 | Agent Observability | Human console + OTel traces to Cloud Trace | ✅ **Fixed 2026-08-19** | The `TelemetryLog` SSE console is real and verified live. OTel: `src/instrumentation.ts` now calls ADK's own `getGcpExporters({enableTracing:true})` + `maybeSetOtelProviders()` once at server startup (Next.js's official `instrumentation.ts`/`register()` hook), gated on `GOOGLE_CLOUD_PROJECT` being set so scripted-mode-only dev is unaffected. Verified live by pulling the actual trace back out of Cloud Trace: full span tree `POST /api/orchestrate` → `invocation` → `invoke_agent LifeGridOrchestrator` → `invoke_agent SecurityScanner` → ..., with proper OTel GenAI semantic-convention attributes (`gen_ai.agent.name`, `gen_ai.conversation.id`, `gen_ai.operation.name`). Two cosmetic, confirmed-harmless log lines you'll see at startup/request time — see the comment block in `instrumentation.ts` for why: a deprecation warning on the trace exporter package (archival after 2026-10-30, fine through this hackathon), and an "Attempted duplicate registration" error from a redundant call inside ADK's own `maybeSetOtelProviders()` (the first registration wins and traces export correctly regardless). |
 
@@ -382,7 +384,7 @@ aspirational.
 
 | Requirement | Status |
 |---|---|
-| Gemini 3.5+ via Vertex AI | ✅ **Fixed 2026-08-19** — `src/lib/adk/agents.ts` now uses `gemini-3.5-flash-lite`, confirmed live via a direct API probe and a full end-to-end app run. Requires `GOOGLE_CLOUD_LOCATION=global` — this model 404s on regional endpoints like `us-central1` in this project; the Cloud Run service's own deploy region is unaffected, it's an independent setting (`cloudbuild.yaml`). |
+| Gemini 3.5+ via Vertex AI | ✅ **Fixed 2026-08-19** — `packages/agent/src/model.ts` now uses `gemini-3.5-flash-lite`, confirmed live via a direct API probe and a full end-to-end app run. Requires `GOOGLE_CLOUD_LOCATION=global` — this model 404s on regional endpoints like `us-central1` in this project; the Cloud Run service's own deploy region is unaffected, it's an independent setting (`cloudbuild.yaml`). |
 | Google Agent Framework | ✅ `@google/adk@1.6.0` |
 | Google Cloud infra | ✅ Cloud Run (`cloudbuild.yaml`), not yet actually deployed — see §3.6 |
 
@@ -415,6 +417,9 @@ verified.
 7. **Model upgrade verified live (2026-08-19)**: `gemini-2.5-flash` → `gemini-3.5-flash-lite` for hackathon compliance. Direct API probes against `us-central1` returned 404 for every `gemini-3.x` model tried; the `global` Vertex AI location resolved `gemini-3.5-flash` and `gemini-3.5-flash-lite` successfully. Confirmed the app itself works end-to-end against the new model+location combo, not just the raw API.
 8. **OTel → Cloud Trace verified live (2026-08-19)**: enabled the Cloud Trace API, wired `src/instrumentation.ts`, and confirmed by directly querying the Cloud Trace API afterward — pulled back a real trace with the full span hierarchy and OTel GenAI semantic-convention attributes. Note the read API (`GET .../traces`) has noticeable ingestion lag (a query immediately after the run came back empty; the same query a short while later returned the trace) — don't take an immediately-empty query as a failure signal.
 9. **Real Cloud Run deploy, verified live (2026-08-19)**: `scripts/gcp-up.sh` builds, pushes to Artifact Registry, and deploys — found and fixed three real bugs surfaced only by actually running it: (a) `next.config.ts` was missing `output: 'standalone'`, so the Dockerfile's `.next/standalone` COPY step would have failed; (b) Cloud Build substitution defaults can't reference other custom substitutions or built-ins like `$PROJECT_ID` reliably — had to inline values instead of an `_IMAGE` indirection; (c) `$COMMIT_SHA` is only populated when Cloud Build is triggered from an actual git commit, not for `gcloud builds submit` from local source — switched to `$BUILD_ID`. Also found this project's Cloud Build runs as the default *compute* SA, not the legacy Cloud Build SA IAM guides usually assume — the script now grants both, since which one applies is a per-project setting. Post-deploy, verified all four cases against the live URL: homepage 200, scripted mode works (free), live mode correctly 401s without the `x-demo-key` header, and 200s with it.
+10. **Monorepo restructure redeploy, two real bugs found (2026-08-21)**: after splitting into `packages/agent` + `apps/web` (§3.6), the first `gcloud builds submit` failed — the Dockerfile's `deps` stage only copies `package.json` files (for layer caching), but the new root `postinstall` unconditionally tried to build `packages/agent` there, before its `tsconfig.json`/`src` existed. Fixed by guarding `postinstall` on the file's presence. Second attempt failed too: the Dockerfile defensively `COPY --from=deps`'d `packages/agent/node_modules` and `apps/web/node_modules`, but npm workspaces fully hoists here — those directories never exist. Both fixes verified against an exact local simulation of the Docker `deps` stage before re-running the real (paid) Cloud Build. Third attempt succeeded; verified live against the redeployed URL: homepage 200, `/api/registry` 200, a scripted orchestrate run 200, and live mode still 401s without `x-demo-key` (confirming the redeploy correctly reused the existing key rather than silently clearing it — `cloudbuild.yaml`'s `--set-env-vars` replaces the full env var set on every deploy).
+11. **Zero-Trust `beforeToolCallback` wiring, verified live (2026-08-22)**: added `createZeroTrustCallback(agentId)` (`packages/agent/src/gateway/zero-trust.ts`) as a real ADK `beforeToolCallback` on every tool-bearing agent. Verified two ways before calling it done: direct calls against the callback confirming both the allow and (several) deny paths, including fail-closed denial of an undeclared tool name; then one real live Vertex AI run, checked for zero `zeroTrustDenied` responses and confirmed all 9 real tools across every agent still executed normally end-to-end through to a real approval pause — proving the wiring integrates with ADK's actual Runner/SequentialAgent event loop, not just correct in isolation. Also surfaced and fixed a real registry gap: `travel-agent` called `read_memory_bank` but had no matching `memory_bank` permission (only an orphan `user_preferences` domain no tool ever checked) — under real enforcement this would have silently broken travel-agent's memory-bank reads.
+12. **Memory Bank dual-backend, verified live (2026-08-22)**: `packages/agent/src/memory/firestore.ts` now a real `@google-cloud/firestore` client (previously installed, unused, despite the filename). Enabled the Firestore API and created a Native-mode database in the project, then verified the real client directly — seed (4 items) → add → delete → re-read, correct counts at every step — against the actual Firestore database, before ever touching Cloud Run. Also verified the `K_SERVICE`-based backend selection (`memory/index.ts`) picks in-memory with no `K_SERVICE` set, Firestore with it set, and the `MEMORY_BANK_BACKEND` override wins either direction. Found one more real issue this way, not just theorized: `@google-cloud/firestore@9` declares `"engines": {"node": ">=22"}` — harmless as an npm warning during local dev (Node 26), but the Dockerfile was still on `node:20-alpine`, an unnecessary gamble now that this dependency is actually invoked at runtime instead of sitting unused. Bumped to `node:22-alpine`.
 
 ## 3.5 Cost
 
@@ -449,8 +454,16 @@ packages/agent/                  — @lifegrid/agent: zero Next.js dependency
   src/gateway/
     model-armor.ts                — prompt-injection regex scanner (real, partial — §3.1)
     policy-engine.ts              — $100 threshold + travel-always-approve (real)
-    zero-trust.ts                 — permission-check logic (real but unwired — §3.1)
-  src/memory/firestore.ts         — in-process array, NOT actually Firestore (§3.1)
+    zero-trust.ts                 — permission-check logic + createZeroTrustCallback(),
+                                     wired as a real beforeToolCallback on every
+                                     tool-bearing agent (§3.1)
+  src/memory/
+    types.ts                      — the MemoryBank interface both backends implement
+    seed-data.ts                  — demo memories shared by both backends
+    in-memory.ts                  — local-dev default, resets on restart
+    firestore.ts                  — real @google-cloud/firestore client, used when deployed
+    index.ts                      — picks a backend by K_SERVICE (Cloud Run's own env
+                                     var) / MEMORY_BANK_BACKEND override (§3.1)
   src/registry.ts                 — ENTERPRISE_AGENT_REGISTRY (Agent Registry pillar)
   src/scripted-demo.ts            — OLD scripted/fake-delay demo path (renamed from
                                      orchestrator.ts — its old class name collided
@@ -481,12 +494,9 @@ Currently deployed at `https://life-grid-q5fdvprapa-uc.a.run.app` (may change
 if the service is ever deleted and recreated rather than just redeployed —
 re-run `gcloud run services describe life-grid --region=us-central1
 --format="value(status.url)"` to confirm the current one before recording
-the demo video). **Not yet redeployed since the monorepo restructure** —
-Dockerfile/cloudbuild.yaml were updated and the exact standalone-output path
-they depend on was verified locally (`node .next/standalone/apps/web/server.js`
-smoke-tested against `/`, `/api/registry`, `/api/memory`, and a scripted
-`/api/orchestrate` run), but a real `gcloud builds submit` re-run is still
-outstanding before the next demo recording.
+the demo video). Redeployed post-restructure on 2026-08-21 (§3.4 point 10)
+and again on 2026-08-22 with the Zero-Trust + Memory Bank changes (§3.4
+points 11–12).
 
 ## 3.7 Priority fix list before submitting
 
@@ -495,7 +505,7 @@ Ordered by what blocks eligibility/judging, not by difficulty:
 1. ~~**Bump the model to Gemini 3.5+**~~ — ✅ done 2026-08-19, see §3.2.
 2. ~~**Wire ADK's own OTel exporter to Cloud Trace**~~ — ✅ done 2026-08-19, see §3.1 (`src/instrumentation.ts`).
 3. ~~**Deploy to Cloud Run for real**~~ — ✅ done 2026-08-19 via `scripts/gcp-up.sh`, see §3.1/§3.4. Record the demo video against the live URL, not localhost, still outstanding.
-4. **Wire `ZeroTrustGateway.validateAccess()` into tool execution** (e.g. as a `beforeToolCallback` in `tools.ts`) — closes the Agent Identity gap; the logic already exists.
-5. **Decide Memory Bank persistence**: real `@google-cloud/firestore` client, or be explicit in the submission text that it's in-memory today. Silence here is worse than either honest choice.
+4. ~~**Wire `ZeroTrustGateway.validateAccess()` into tool execution**~~ — ✅ done 2026-08-22, see §3.1.
+5. ~~**Decide Memory Bank persistence**~~ — ✅ done 2026-08-22: real Firestore when deployed, in-memory locally, see §3.1.
 6. Write the README spin-up section; adapt Part 2 §2.2's diagram for the submission's architecture-diagram deliverable.
 7. Only after 1–6: the `PlanSynthesizer`-after-resume gap (§3.4 point 6) and real external API integrations (§3.3) as stretch goals.

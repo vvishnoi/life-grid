@@ -1,71 +1,58 @@
+import { Firestore } from '@google-cloud/firestore';
 import { MemoryItem } from '../types.js';
+import type { MemoryBank } from './types.js';
+import { INITIAL_SEED_MEMORIES } from './seed-data.js';
 
-// Default seeded memory items representing persistent history
-const INITIAL_SEED_MEMORIES: MemoryItem[] = [
-  {
-    id: 'mem-1',
-    category: 'preference',
-    key: 'lodging_location_preference',
-    value: 'Must be within 3 miles of downtown; dislikes remote airport hotels based on past Denver trip.',
-    sentiment: 'negative',
-    sourceAgent: 'Travel & Lodging Agent',
-    updatedAt: '2026-07-15T14:32:00Z'
-  },
-  {
-    id: 'mem-2',
-    category: 'family_profile',
-    key: 'family_dietary_rules',
-    value: 'Daughter has nut allergy; prefers restaurants with verified gluten-free & nut-free kitchens.',
-    sentiment: 'neutral',
-    sourceAgent: 'Family & Activities Agent',
-    updatedAt: '2026-08-01T09:15:00Z'
-  },
-  {
-    id: 'mem-3',
-    category: 'budget_rule',
-    key: 'max_nightly_hotel_rate',
-    value: 'Hotel budget cap: $350/night max for family suites.',
-    sentiment: 'positive',
-    sourceAgent: 'Finance & Budget Agent',
-    updatedAt: '2026-08-05T11:20:00Z'
-  },
-  {
-    id: 'mem-4',
-    category: 'schedule_rule',
-    key: 'no_early_morning_flights',
-    value: 'Avoid flights departing before 7:30 AM due to kids morning schedule.',
-    sentiment: 'negative',
-    sourceAgent: 'Calendar & Time Agent',
-    updatedAt: '2026-08-10T16:45:00Z'
+const COLLECTION = 'lifegrid_memory_bank';
+
+// Real cross-session persistence — selected automatically on Cloud Run (see
+// index.ts). Auth is via the runtime service account's Application Default
+// Credentials, same as Vertex AI; requires `roles/datastore.user` and a
+// Firestore Native-mode database to exist in the project (both provisioned
+// by scripts/gcp-up.sh).
+export class FirestoreMemoryBank implements MemoryBank {
+  private db = new Firestore();
+  // Memoized so concurrent early requests don't race to seed twice.
+  private seeded: Promise<void> | undefined;
+
+  private ensureSeeded(): Promise<void> {
+    if (!this.seeded) {
+      this.seeded = (async () => {
+        const existing = await this.db.collection(COLLECTION).limit(1).get();
+        if (existing.empty) {
+          const batch = this.db.batch();
+          for (const memory of INITIAL_SEED_MEMORIES) {
+            batch.set(this.db.collection(COLLECTION).doc(memory.id), memory);
+          }
+          await batch.commit();
+        }
+      })();
+    }
+    return this.seeded;
   }
-];
-
-class MemoryBankService {
-  private inMemoryStore: MemoryItem[] = [...INITIAL_SEED_MEMORIES];
 
   public async getMemories(): Promise<MemoryItem[]> {
-    // In production with GCP credentials, this connects to `@google-cloud/firestore`
-    return this.inMemoryStore;
+    await this.ensureSeeded();
+    const snapshot = await this.db.collection(COLLECTION).orderBy('updatedAt', 'desc').get();
+    return snapshot.docs.map((doc) => doc.data() as MemoryItem);
   }
 
   public async addMemory(memory: Omit<MemoryItem, 'id' | 'updatedAt'>): Promise<MemoryItem> {
+    await this.ensureSeeded();
     const newItem: MemoryItem = {
       ...memory,
       id: `mem-${Date.now()}`,
       updatedAt: new Date().toISOString()
     };
-    this.inMemoryStore.unshift(newItem);
+    await this.db.collection(COLLECTION).doc(newItem.id).set(newItem);
     return newItem;
   }
 
   public async deleteMemory(id: string): Promise<boolean> {
-    const index = this.inMemoryStore.findIndex(m => m.id === id);
-    if (index !== -1) {
-      this.inMemoryStore.splice(index, 1);
-      return true;
-    }
-    return false;
+    const ref = this.db.collection(COLLECTION).doc(id);
+    const doc = await ref.get();
+    if (!doc.exists) return false;
+    await ref.delete();
+    return true;
   }
 }
-
-export const memoryBank = new MemoryBankService();

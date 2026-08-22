@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { geminiModel } from '../../model.js';
 import { calendarAgentTools } from '../../tools.js';
+import { createZeroTrustCallback } from '../../gateway/zero-trust.js';
 
 const instructionsPath = join(dirname(fileURLToPath(import.meta.url)), 'instructions.md');
 
@@ -14,4 +15,5 @@ export const calendarAgent = new LlmAgent({
   instruction: readFileSync(instructionsPath, 'utf-8'),
   tools: calendarAgentTools,
   outputKey: 'calendar_results',
+  beforeToolCallback: createZeroTrustCallback('calendar-agent'),
 });

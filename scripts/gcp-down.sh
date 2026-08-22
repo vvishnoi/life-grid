@@ -41,7 +41,11 @@ echo "  - Cloud Run service: $SERVICE_NAME ($REGION)"
 echo "  - Artifact Registry repo (and all stored images): $AR_REPO ($AR_LOCATION)"
 if $FULL; then
   echo "  - Runtime service account: $RUNTIME_SA_EMAIL"
-  echo "  - Disabling Vertex AI + Cloud Trace APIs"
+  echo "  - Disabling Vertex AI + Cloud Trace + Firestore APIs"
+  echo "    (the Firestore DATABASE and its data are NOT deleted — that's a"
+  echo "    separate, harder-to-reverse step; storage cost for a Memory Bank"
+  echo "    this small is negligible. Delete manually if you really want to:"
+  echo "    gcloud firestore databases delete --database='(default)' --project=$PROJECT_ID)"
 fi
 echo
 
@@ -69,8 +73,8 @@ if $FULL; then
     --project="$PROJECT_ID" --quiet 2>&1 \
     || echo "    (already gone)"
 
-  echo "==> Disabling Vertex AI + Cloud Trace APIs..."
-  gcloud services disable aiplatform.googleapis.com cloudtrace.googleapis.com \
+  echo "==> Disabling Vertex AI + Cloud Trace + Firestore APIs..."
+  gcloud services disable aiplatform.googleapis.com cloudtrace.googleapis.com firestore.googleapis.com \
     --project="$PROJECT_ID" --force --quiet
 fi
 

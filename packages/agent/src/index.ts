@@ -32,10 +32,10 @@ export { mapAdkEventToTelemetryLogs } from './event-mapper.js';
 // ── Governance gateways (Agent Gateway / Model Armor / Zero-Trust pillars) ─
 export { ModelArmorGateway, type SecurityScanResult } from './gateway/model-armor.js';
 export { PolicyEngine, SPEND_LIMIT_THRESHOLD, type PolicyCheckResult } from './gateway/policy-engine.js';
-export { ZeroTrustGateway, type ZeroTrustValidation } from './gateway/zero-trust.js';
+export { ZeroTrustGateway, createZeroTrustCallback, type ZeroTrustValidation } from './gateway/zero-trust.js';
 
 // ── Memory Bank (cross-session preferences) ─────────────────────────────
-export { memoryBank } from './memory/firestore.js';
+export { memoryBank, type MemoryBank } from './memory/index.js';
 
 // ── Agent Registry (Discovery & Lifecycle pillar) ───────────────────────
 export { ENTERPRISE_AGENT_REGISTRY, getAgentById } from './registry.js';

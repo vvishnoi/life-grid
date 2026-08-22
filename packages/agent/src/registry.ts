@@ -59,7 +59,7 @@ export const ENTERPRISE_AGENT_REGISTRY: AgentInfo[] = [
     ],
     permissions: [
       { domain: 'travel_apis', access: 'read', description: 'Can search public travel providers' },
-      { domain: 'user_preferences', access: 'read', description: 'Can read lodging & seat preferences' },
+      { domain: 'memory_bank', access: 'read', description: 'Can read lodging & seat preferences from the Memory Bank' },
       { domain: 'financial_credentials', access: 'none', description: 'Zero-trust: Restricted from direct card charges' }
     ],
     riskProfile: 'Medium-High (External API & Purchases)'

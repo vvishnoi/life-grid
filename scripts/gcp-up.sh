@@ -43,7 +43,22 @@ gcloud services enable \
   cloudtrace.googleapis.com \
   artifactregistry.googleapis.com \
   iam.googleapis.com \
+  firestore.googleapis.com \
   --project="$PROJECT_ID"
+
+echo "==> Ensuring a Firestore (Native mode) database exists in $REGION..."
+# Memory Bank persistence (packages/agent/src/memory/) uses real Firestore
+# only when deployed (K_SERVICE is set) — see that file's comment. A fresh
+# GCP project has no Firestore database at all until one is created once.
+if ! gcloud firestore databases describe --database="(default)" --project="$PROJECT_ID" >/dev/null 2>&1; then
+  gcloud firestore databases create \
+    --project="$PROJECT_ID" \
+    --database="(default)" \
+    --location="$REGION" \
+    --type=firestore-native
+else
+  echo "    already exists, skipping creation"
+fi
 
 echo "==> Ensuring Artifact Registry repo exists: $AR_REPO ($AR_LOCATION)"
 if ! gcloud artifacts repositories describe "$AR_REPO" \
@@ -74,7 +89,7 @@ else
 fi
 
 echo "==> Granting minimal IAM roles to the runtime SA (idempotent)..."
-for role in roles/aiplatform.user roles/cloudtrace.agent; do
+for role in roles/aiplatform.user roles/cloudtrace.agent roles/datastore.user; do
   gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --member="serviceAccount:${RUNTIME_SA_EMAIL}" \
     --role="$role" \
