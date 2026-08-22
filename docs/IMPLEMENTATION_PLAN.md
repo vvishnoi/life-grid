@@ -535,5 +535,5 @@ Ordered by what blocks eligibility/judging, not by difficulty:
 3. ~~**Deploy to Cloud Run for real**~~ — ✅ done 2026-08-19 via `scripts/gcp-up.sh`, see §3.1/§3.4. Record the demo video against the live URL, not localhost, still outstanding.
 4. ~~**Wire `ZeroTrustGateway.validateAccess()` into tool execution**~~ — ✅ done 2026-08-22, see §3.1.
 5. ~~**Decide Memory Bank persistence**~~ — ✅ done 2026-08-22: real Firestore when deployed, in-memory locally, see §3.1.
-6. Write the README spin-up section; adapt Part 2 §2.2's diagram for the submission's architecture-diagram deliverable.
+6. ~~Write the README spin-up section; adapt Part 2 §2.2's diagram for the submission's architecture-diagram deliverable.~~ — ✅ done 2026-08-22: README spin-up section updated for the monorepo; `docs/submission/` has the architecture diagram (`architecture-diagram.html`, two figures — system + pipeline, real/simulated marked per tool), a full Devpost text draft (`DEVPOST_DESCRIPTION.md`), and a timed demo-video shot list (`DEMO_SCRIPT.md`). Still outstanding: actually recording the video, and fixing the Calendar OAuth test-user list (§3.3) before it's in the recording.
 7. Only after 1–6: the `PlanSynthesizer`-after-resume gap (§3.4 point 6) and real external API integrations (§3.3) as stretch goals.
