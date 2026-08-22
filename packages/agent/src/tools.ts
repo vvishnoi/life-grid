@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { ModelArmorGateway } from './gateway/model-armor.js';
 import { PolicyEngine } from './gateway/policy-engine.js';
 import { ZeroTrustGateway } from './gateway/zero-trust.js';
-import { memoryBank } from './memory/firestore.js';
+import { memoryBank } from './memory/index.js';
 
 // ─────────────────────────────────────────────────────
 // 1. MEMORY BANK TOOLS (Real Firestore backing)

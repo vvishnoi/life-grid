@@ -3,7 +3,7 @@ import { TelemetryLog, ApprovalItem, MemoryItem, GoalExecutionState } from './ty
 import { ModelArmorGateway } from './gateway/model-armor.js';
 import { PolicyEngine } from './gateway/policy-engine.js';
 import { ZeroTrustGateway } from './gateway/zero-trust.js';
-import { memoryBank } from './memory/firestore.js';
+import { memoryBank } from './memory/index.js';
 
 export interface PredefinedScenarioData {
   id: string;

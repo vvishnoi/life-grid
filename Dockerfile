@@ -1,5 +1,9 @@
 # 1. Base image
-FROM node:20-alpine AS base
+# @google-cloud/firestore@9 (real Memory Bank persistence on Cloud Run —
+# packages/agent/src/memory/) declares "engines": { "node": ">=22" }. npm
+# only warns rather than hard-failing on that, but running it for real
+# under Node 20 is an unnecessary gamble — Node 22 is current LTS anyway.
+FROM node:22-alpine AS base
 
 # 2. Dependencies
 # npm workspaces needs every workspace's package.json present (not just the
