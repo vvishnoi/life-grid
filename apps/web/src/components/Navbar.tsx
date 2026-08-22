@@ -1,11 +1,13 @@
 'use client';
 
 import React from 'react';
-import { ShieldCheck, Cpu, Cloud, Sparkles, Layers, Sun, Moon, Monitor } from 'lucide-react';
+import { ShieldCheck, Cpu, Cloud, Sparkles, Layers, Sun, Moon, Monitor, CalendarCheck, LogOut } from 'lucide-react';
+import { useSession, signIn, signOut } from 'next-auth/react';
 import { useTheme } from './ThemeProvider';
 
 export function Navbar() {
   const { theme, setTheme } = useTheme();
+  const { data: session, status } = useSession();
 
   return (
     <header className="sticky top-0 z-50 glass-panel border-b border-slate-300 dark:border-slate-800/80 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4 transition-colors">
@@ -54,6 +56,29 @@ export function Navbar() {
           <Cpu className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
           <span>Model Armor Active</span>
         </div>
+
+        {/* Google Calendar connection — real data for CalendarAgent when
+            connected (packages/agent/src/tools.ts), simulated otherwise */}
+        {status === 'authenticated' ? (
+          <button
+            onClick={() => signOut()}
+            title={`Signed in as ${session?.user?.email ?? 'Google'} — click to disconnect`}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 font-semibold hover:bg-emerald-500/25 transition-colors"
+          >
+            <CalendarCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span className="hidden sm:inline">Calendar Connected</span>
+            <LogOut className="w-3 h-3 opacity-60" />
+          </button>
+        ) : (
+          <button
+            onClick={() => signIn('google')}
+            title="Connect Google Calendar for real availability data"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-300 dark:hover:bg-slate-800 transition-colors"
+          >
+            <CalendarCheck className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Connect Google Calendar</span>
+          </button>
+        )}
 
         {/* Theme Selector Toggle */}
         <div className="flex items-center p-1 rounded-xl bg-slate-200 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 space-x-1">

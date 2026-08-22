@@ -41,6 +41,7 @@ echo "  - Cloud Run service: $SERVICE_NAME ($REGION)"
 echo "  - Artifact Registry repo (and all stored images): $AR_REPO ($AR_LOCATION)"
 if $FULL; then
   echo "  - Runtime service account: $RUNTIME_SA_EMAIL"
+  echo "  - Secret Manager secrets: lifegrid-auth-secret, lifegrid-google-oauth-client-secret"
   echo "  - Disabling Vertex AI + Cloud Trace + Firestore APIs"
   echo "    (the Firestore DATABASE and its data are NOT deleted — that's a"
   echo "    separate, harder-to-reverse step; storage cost for a Memory Bank"
@@ -72,6 +73,12 @@ if $FULL; then
   gcloud iam service-accounts delete "$RUNTIME_SA_EMAIL" \
     --project="$PROJECT_ID" --quiet 2>&1 \
     || echo "    (already gone)"
+
+  echo "==> Deleting Secret Manager secrets..."
+  for secret in lifegrid-auth-secret lifegrid-google-oauth-client-secret; do
+    gcloud secrets delete "$secret" --project="$PROJECT_ID" --quiet 2>&1 \
+      || echo "    ($secret already gone)"
+  done
 
   echo "==> Disabling Vertex AI + Cloud Trace + Firestore APIs..."
   gcloud services disable aiplatform.googleapis.com cloudtrace.googleapis.com firestore.googleapis.com \

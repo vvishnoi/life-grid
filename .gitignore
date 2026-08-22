@@ -44,3 +44,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+client_secret_301592933372-i01ogv1t5r4stbbs1bis853hppt5j8vr.apps.googleusercontent.com.json
+package-lock.json

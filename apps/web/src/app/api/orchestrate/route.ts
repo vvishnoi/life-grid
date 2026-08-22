@@ -8,6 +8,7 @@ import {
   LIFEGRID_USER_ID,
   streamAdkEvents,
 } from '@lifegrid/agent';
+import { auth } from '@/auth';
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,12 +24,17 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: 'Live Agents mode requires a valid demo key.' }, { status: 401 });
       }
 
+      // If the user signed in with Google (Navbar's "Connect Google
+      // Calendar"), CalendarAgent's tool picks this token up from session
+      // state and calls the real Calendar API instead of its simulated
+      // fallback — see packages/agent/src/tools.ts.
+      const userSession = await auth();
       const sessionId = crypto.randomUUID();
       await sessionService.createSession({
         appName: LIFEGRID_APP_NAME,
         userId: LIFEGRID_USER_ID,
         sessionId,
-        state: { budgetCap },
+        state: { budgetCap, googleCalendarAccessToken: userSession?.calendarAccessToken },
       });
 
       const events = lifeGridRunner.runAsync({

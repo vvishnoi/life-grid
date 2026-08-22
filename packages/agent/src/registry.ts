@@ -90,21 +90,20 @@ export const ENTERPRISE_AGENT_REGISTRY: AgentInfo[] = [
     name: 'Calendar & Time Agent',
     role: 'Schedule Conflict Resolution Specialist',
     category: 'calendar',
-    description: 'Inspects household calendars, identifies free time windows, resolves event overlaps, and holds tentative time blocks.',
+    description: 'Inspects the household calendar and identifies free time windows and event overlaps. Reads the user\'s real Google Calendar when connected (OAuth, read-only); falls back to simulated data otherwise.',
     icon: 'Calendar',
     status: 'idle',
     capabilities: [
-      'Audits family calendar availability across Google Workspace / Outlook',
-      'Holds temporary hold slots during trip planning',
-      'Calculates travel buffer times between itinerary destinations',
+      'Reads real Google Calendar events (read-only) when the user has connected their account',
+      'Falls back to simulated calendar data when not connected',
+      'Identifies scheduling conflicts in the requested date range',
       'Alerts user of unresolvable appointment conflicts'
     ],
     permissions: [
-      { domain: 'calendar_events', access: 'read', description: 'Reads availability and event titles' },
-      { domain: 'calendar_events', access: 'write', description: 'Creates hold reservations' },
+      { domain: 'calendar_events', access: 'read', description: 'Reads availability and event titles; never writes' },
       { domain: 'financial_credentials', access: 'none', description: 'Zero-trust: No financial access' }
     ],
-    riskProfile: 'Low-Medium (Internal Schedule Mutator)'
+    riskProfile: 'Low Risk (Read-Only Schedule Inspector)'
   },
   {
     id: 'finance-agent',

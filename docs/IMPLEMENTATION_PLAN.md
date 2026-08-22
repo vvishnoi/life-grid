@@ -399,12 +399,36 @@ approval pause → batched resume → completion cycle; graceful failure
 with a clean SSE error frame when credentials are missing.
 
 **Intentionally simulated:** `search_flights`, `search_hotels`,
-`search_activities`, `check_calendar_availability`,
-`search_gear_and_supplies` in `tools.ts` return realistic generated data,
-not real external API calls — each response includes a `note` field
-saying so. Swapping any one for a real API is a bounded, isolated change
-(one `FunctionTool` per data source) but wasn't in scope for what's been
-verified.
+`search_activities`, `search_gear_and_supplies` in `tools.ts` return
+realistic generated data, not real external API calls — each response
+includes a `note` field saying so. Swapping any one for a real API is a
+bounded, isolated change (one `FunctionTool` per data source) but wasn't
+in scope for what's been verified.
+
+**`check_calendar_availability` is the one exception — real when
+connected (2026-08-22):** "Connect Google Calendar" in the Navbar signs
+the user in via Auth.js (`apps/web/src/auth.ts`) requesting the
+`calendar.readonly` scope only — deliberately read-only, no scope to write
+events, so a live demo can never modify a stranger's real calendar.
+`/api/orchestrate` passes the resulting access token into ADK session
+state (`googleCalendarAccessToken`); the tool
+(`packages/agent/src/tools.ts`) reads it via `tool_context.state` and
+calls the real Google Calendar API (`googleapis`) for actual free/busy
+data when present, and falls back to the original simulated response
+(unchanged) — including on any real API error, so an expired token or API
+hiccup degrades gracefully instead of failing the agent turn — when not.
+`CalendarAgent`'s instructions and the Agent Registry's description of it
+were both corrected to stop claiming it "creates hold reservations" — that
+was never true even in the simulated version's actual tool output
+(`tentativeHoldsPlaced` was just a fixed `true` no code ever acted on) and
+is certainly not true of the real integration.
+
+Verified: the OAuth redirect itself, end-to-end up to Google's real
+consent screen — correct client ID, redirect URI, and scopes, PKCE
+challenge included — by driving Auth.js's `/api/auth/csrf` +
+`/api/auth/signin/google` endpoints directly and inspecting the resulting
+`Location` header. Completing the actual consent click requires a human in
+a real browser, so that last step is manual-test-only, not automated here.
 
 ## 3.4 Verified by actually running the system (not just review)
 
@@ -474,7 +498,11 @@ packages/agent/                  — @lifegrid/agent: zero Next.js dependency
                                      no ADK/gRPC/OTel — import this from React components
 apps/web/                        — @lifegrid/web: the Next.js UI
   src/instrumentation.ts          — Next.js startup hook, wires ADK's OTel spans to Cloud Trace
-  src/app/api/orchestrate/route.ts — mode branch: scripted (old JSON) vs live (SSE)
+  src/auth.ts                     — Auth.js config: Google sign-in, calendar.readonly scope only
+  src/app/api/auth/[...nextauth]/route.ts — Auth.js's own route handlers
+  src/app/api/orchestrate/route.ts — mode branch: scripted (old JSON) vs live (SSE); live
+                                      mode also passes the signed-in user's Calendar access
+                                      token into ADK session state, if present (§3.3)
   src/app/api/approvals/route.ts   — mode branch: scripted stub vs live batch-resume
   src/app/page.tsx                 — frontend orchestration, batch-approval tracking
   src/lib/adk-client.ts            — SSE frame parser used by the frontend
