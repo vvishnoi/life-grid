@@ -148,6 +148,31 @@
     margin: 0;
   }
 
+  .explainer {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 22px 28px;
+  }
+
+  .explainer-item h3 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 8px;
+    color: var(--accent);
+  }
+
+  .explainer-item p {
+    margin: 0;
+    font-size: 14.5px;
+    color: var(--ink);
+    line-height: 1.6;
+  }
+
+  .explainer-item strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
   .svg-wrap {
     overflow-x: auto;
   }
@@ -249,7 +274,7 @@
   <header class="page">
     <p class="eyebrow">Fortified Enterprise Fleet — Hackathon Architecture</p>
     <h1>LifeGrid</h1>
-    <p class="lede">A household assistant fleet built as a governed multi-agent system: one fixed pipeline, three real enforcement gateways, and a Memory Bank that survives a redeploy — not a chatbot with tools bolted on.</p>
+    <p class="lede">LifeGrid plans household stuff — like a family trip — by splitting the work across several small AI agents instead of one AI trying to do everything itself.</p>
     <div class="facts">
       <span class="fact">Gemini 3.5-flash-lite via Vertex AI</span>
       <span class="fact">Google ADK — SequentialAgent + ParallelAgent</span>
@@ -260,8 +285,30 @@
   </header>
 
   <section class="card">
+    <h2>How it works, in plain terms</h2>
+    <div class="explainer">
+      <div class="explainer-item">
+        <h3>The pattern, and why</h3>
+        <p>Instead of one AI model freely deciding what to do next, we wrote the steps as a fixed sequence: check for anything unsafe first, then do four pieces of research at once, then check the budget, then write up the plan. Each step is a separate, smaller AI call. We fixed the order on purpose — if the AI were choosing its own next step, a cleverly worded request could talk it into skipping the safety check. A fixed sequence can't be talked out of a step that isn't there to skip.</p>
+      </div>
+      <div class="explainer-item">
+        <h3>How a request moves through the system</h3>
+        <p>You type a goal and a budget in the browser. That goes to our server, which starts the agents and streams back what each one is doing as it happens, instead of making you wait for a final answer. Along the way, agents look up things you've told it before — like "no early flights" — from a small database. Before anything that would spend money over $100, or book travel at all, it stops and asks you to approve it first.</p>
+      </div>
+      <div class="explainer-item">
+        <h3>What Google technology we're using</h3>
+        <p><strong>Gemini</strong> (via Vertex AI) does the actual thinking for each agent. <strong>Google ADK</strong> is the framework that runs the agents in sequence and in parallel. <strong>Cloud Run</strong> hosts the app. <strong>Firestore</strong> is the database that remembers your preferences between visits. <strong>Cloud Trace</strong> records what each agent did, for debugging. And if you sign in with Google, it reads your real <strong>Google Calendar</strong> (view-only) instead of guessing your schedule.</p>
+      </div>
+      <div class="explainer-item">
+        <h3>What we'd add for a real version</h3>
+        <p>Today, flight, hotel, activity, and gear results are realistic sample data, not real bookings — only the calendar check is hooked up to something real. Next would be connecting real flight/hotel search, a couple more safety checks we haven't built yet, and making sure a request doesn't get lost if the server restarts partway through.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
     <h2>System architecture</h2>
-    <p class="section-sub">One request's real path: browser to governed agent pipeline to Google Cloud.</p>
+    <p class="section-sub">The path one request actually takes, from your browser to Google Cloud and back.</p>
     <figure>
       <div class="svg-wrap">
         <svg viewBox="0 0 1120 660" role="img" aria-label="A request enters through the Next.js UI, streams over SSE to Cloud Run API routes, which start an ADK Runner. The orchestrator's pipeline is checked by three governance gateways, reads and writes two state stores, and calls out to Vertex AI, Cloud Trace, and the Google Calendar API.">
@@ -357,48 +404,48 @@
           <text x="890" y="608" text-anchor="middle" class="node-sub" font-size="10.5">read-only, real when connected</text>
         </svg>
       </div>
-      <figcaption>Solid arrows are real, verified paths — including Zero-Trust and Cloud Trace, closed out 2026-08-19 to 08-22. The one thing this diagram doesn't show: the whole run is still bound to one SSE HTTP connection's lifetime, not a Cloud Tasks/Pub-Sub-backed runtime — the Agent Runtime pillar's one open gap.</figcaption>
+      <figcaption>Every arrow above is a real, working connection we've tested, not a planned one. The one gap not shown here: a request is still tied to one open connection for its whole run — if that connection drops, the run doesn't resume on its own yet.</figcaption>
     </figure>
   </section>
 
   <section class="card">
-    <h2>The six Fortified Enterprise Fleet pillars</h2>
-    <p class="section-sub">Design-to-build status, honestly — not aspirational. See docs/IMPLEMENTATION_PLAN.md §3.1 for the full detail behind each line.</p>
+    <h2>What's actually built vs. still in progress</h2>
+    <p class="section-sub">The hackathon track asks for seven specific capabilities. Here's the honest status of each — nothing below is aspirational.</p>
     <div class="pillars">
       <div class="pillar">
-        <div class="pillar-head"><span class="dot done"></span><span class="pillar-name">Agent Registry</span></div>
-        <div class="pillar-note">Static directory, 7 agents, their declared permissions — served live via /api/registry.</div>
+        <div class="pillar-head"><span class="dot done"></span><span class="pillar-name">Agent directory</span></div>
+        <div class="pillar-note">A list of all 7 agents and what each one is allowed to do, viewable live in the app.</div>
       </div>
       <div class="pillar">
-        <div class="pillar-head"><span class="dot partial"></span><span class="pillar-name">Agent Runtime</span></div>
-        <div class="pillar-note">Real Runner/Sequential/ParallelAgent execution, deployed — still bound to one HTTP request's lifetime.</div>
+        <div class="pillar-head"><span class="dot partial"></span><span class="pillar-name">Long-running tasks</span></div>
+        <div class="pillar-note">Runs today, but a run is still tied to one open connection rather than able to survive a restart.</div>
       </div>
       <div class="pillar">
-        <div class="pillar-head"><span class="dot done"></span><span class="pillar-name">Memory Bank</span></div>
-        <div class="pillar-note">Real Firestore when deployed, in-memory locally — auto-selected by Cloud Run's own K_SERVICE.</div>
+        <div class="pillar-head"><span class="dot done"></span><span class="pillar-name">Memory of your preferences</span></div>
+        <div class="pillar-note">Saved for real in a Google Cloud database once deployed; kept in memory only during local testing.</div>
       </div>
       <div class="pillar">
-        <div class="pillar-head"><span class="dot done"></span><span class="pillar-name">Agent Identity</span></div>
-        <div class="pillar-note">Zero-Trust wired as a real beforeToolCallback on every tool-bearing agent — fail-closed by default.</div>
+        <div class="pillar-head"><span class="dot done"></span><span class="pillar-name">Permission checks per agent</span></div>
+        <div class="pillar-note">Every agent can only use the tools it's been given permission for — anything else is blocked automatically.</div>
       </div>
       <div class="pillar">
-        <div class="pillar-head"><span class="dot done"></span><span class="pillar-name">Agent Gateway</span></div>
-        <div class="pillar-note">One PolicyEngine.evaluateAction() call site for every spend/booking decision, no per-agent drift.</div>
+        <div class="pillar-head"><span class="dot done"></span><span class="pillar-name">Spend/booking approval</span></div>
+        <div class="pillar-note">One shared rule, checked the same way everywhere: over $100, or any travel booking, needs your OK first.</div>
       </div>
       <div class="pillar">
-        <div class="pillar-head"><span class="dot partial"></span><span class="pillar-name">Model Armor</span></div>
-        <div class="pillar-note">Real prompt-injection scanning, verified against a live attack payload — tool-poisoning/PII checks not yet built.</div>
+        <div class="pillar-head"><span class="dot partial"></span><span class="pillar-name">Security scanning</span></div>
+        <div class="pillar-note">Catches attempts to manipulate the AI through your input, tested against a real example. Doesn't yet check tool results or catch leaked personal data.</div>
       </div>
       <div class="pillar">
-        <div class="pillar-head"><span class="dot done"></span><span class="pillar-name">Agent Observability</span></div>
-        <div class="pillar-note">Live TelemetryLog console plus real OTel GenAI spans exported to Cloud Trace.</div>
+        <div class="pillar-head"><span class="dot done"></span><span class="pillar-name">Activity monitoring</span></div>
+        <div class="pillar-note">A live log you can watch as it happens, plus a technical trace of every step saved to Google Cloud.</div>
       </div>
     </div>
   </section>
 
   <section class="card">
     <h2>Multi-agent pipeline</h2>
-    <p class="section-sub">A fixed <span class="mono">SequentialAgent</span>, not a router the model could talk its way around — the security gate is structurally unskippable.</p>
+    <p class="section-sub">The steps always run in the same order — the AI can't decide to skip the security check, because it isn't a choice it gets to make.</p>
     <figure>
       <div class="svg-wrap">
         <svg viewBox="0 0 1180 620" role="img" aria-label="SecurityScanner runs first, then four agents — Travel, Family, Calendar, Shopping — run concurrently inside a ParallelAgent, then FinanceAgent audits the combined budget, then PlanSynthesizer compiles the final plan. Each agent's tools are marked real or simulated.">
@@ -455,11 +502,11 @@
           <text x="590" y="570" text-anchor="middle" class="node-sub" font-size="10.5">no tools — compiles session state into the final plan</text>
         </svg>
       </div>
-      <figcaption>Every tool call shown above — real or simulated — passes through Zero-Trust's <span class="mono">beforeToolCallback</span> first; an undeclared tool is denied by default, not silently allowed.</figcaption>
+      <figcaption>Every tool shown here — real or simulated — is checked against that agent's permissions before it's allowed to run. If an agent tries to use something it's not permitted to, that's blocked automatically, not just discouraged.</figcaption>
     </figure>
     <div class="legend">
-      <div class="legend-item"><span class="legend-swatch" style="background:var(--ok)"></span>Real: genuinely calls Vertex AI / Firestore / Google Calendar / the Policy Engine</div>
-      <div class="legend-item"><span class="legend-swatch" style="background:var(--sim)"></span>Simulated: realistic generated data, no external API call (each response says so)</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--ok)"></span>Real: actually calls Gemini, the database, or your real calendar</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--sim)"></span>Simulated: realistic sample data, no real external call yet</div>
     </div>
   </section>
 
