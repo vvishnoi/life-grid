@@ -19,6 +19,8 @@
     --ok-soft: #E3F6EC;
     --sim: #8A8FA0;
     --sim-soft: #EEEFF4;
+    --danger: #C41E3A;
+    --danger-soft: #FBE7EA;
     --shadow: 0 1px 2px rgba(18,23,42,0.04), 0 8px 24px rgba(18,23,42,0.06);
   }
 
@@ -38,6 +40,8 @@
       --ok-soft: #133328;
       --sim: #7B8299;
       --sim-soft: #1A2038;
+      --danger: #FF6B7A;
+      --danger-soft: #3A1620;
       --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
     }
   }
@@ -57,6 +61,8 @@
     --ok-soft: #133328;
     --sim: #7B8299;
     --sim-soft: #1A2038;
+    --danger: #FF6B7A;
+    --danger-soft: #3A1620;
     --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
   }
 
@@ -199,6 +205,11 @@
   .accent-title { fill: var(--accent); font-family: "IBM Plex Sans", sans-serif; font-weight: 600; }
   .edge { stroke: var(--muted); stroke-width: 1.6; fill: none; }
   .edge-label { fill: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 12px; }
+  .danger-fill { fill: var(--danger-soft); }
+  .danger-stroke { stroke: var(--danger); stroke-width: 1.5; }
+  .danger-title { fill: var(--danger); font-family: "IBM Plex Sans", sans-serif; font-weight: 700; }
+  .danger-edge { stroke: var(--danger); stroke-width: 1.8; fill: none; }
+  .danger-edge-label { fill: var(--danger); font-family: "IBM Plex Mono", monospace; font-size: 12px; font-weight: 600; }
   .container-box { fill: none; stroke: var(--border); stroke-width: 1.5; stroke-dasharray: 5 5; }
   .container-label { fill: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; }
   .ok-badge { fill: var(--ok); font-family: "IBM Plex Mono", monospace; font-weight: 600; }
@@ -276,11 +287,12 @@
     <h1>LifeGrid</h1>
     <p class="lede">LifeGrid plans household stuff — like a family trip — by splitting the work across several small AI agents instead of one AI trying to do everything itself.</p>
     <div class="facts">
-      <span class="fact">Gemini 3.5-flash-lite via Vertex AI</span>
+      <span class="fact">Gemini 3.5 Flash-Lite / Flash via Vertex AI</span>
       <span class="fact">Google ADK — SequentialAgent + ParallelAgent</span>
       <span class="fact">Cloud Run</span>
       <span class="fact">Firestore Memory Bank</span>
       <span class="fact">OAuth-gated real Google Calendar</span>
+      <span class="fact">Model choice in Settings — Lite / Standard / Auto</span>
     </div>
   </header>
 
@@ -289,7 +301,7 @@
     <div class="explainer">
       <div class="explainer-item">
         <h3>The pattern, and why</h3>
-        <p>Instead of one AI model freely deciding what to do next, we wrote the steps as a fixed sequence: check for anything unsafe first, then do four pieces of research at once, then check the budget, then write up the plan. Each step is a separate, smaller AI call. We fixed the order on purpose — if the AI were choosing its own next step, a cleverly worded request could talk it into skipping the safety check. A fixed sequence can't be talked out of a step that isn't there to skip.</p>
+        <p>Instead of one AI model freely deciding what to do next, we wrote the steps as a fixed sequence: check for anything unsafe first, then do four pieces of research at once, then check the budget, then write up the plan. Each step is a separate, smaller AI call. We fixed the order on purpose — if the AI were choosing its own next step, a cleverly worded request could talk it into skipping the safety check. A fixed sequence can't be talked out of a step that isn't there to skip. And if the safety check <em>does</em> find something, the whole run stops right there — every later step checks for that before doing any work, so a blocked threat actually halts the pipeline instead of just being logged while everything else runs anyway.</p>
       </div>
       <div class="explainer-item">
         <h3>How a request moves through the system</h3>
@@ -434,7 +446,7 @@
       </div>
       <div class="pillar">
         <div class="pillar-head"><span class="dot partial"></span><span class="pillar-name">Security scanning</span></div>
-        <div class="pillar-note">Catches attempts to manipulate the AI through your input, tested against a real example. Doesn't yet check tool results or catch leaked personal data.</div>
+        <div class="pillar-note">Catches attempts to manipulate the AI through your input — including ones hidden inside a URL — and a detected threat genuinely stops the rest of the run, not just a warning. Doesn't yet check tool results or catch leaked personal data.</div>
       </div>
       <div class="pillar">
         <div class="pillar-head"><span class="dot done"></span><span class="pillar-name">Activity monitoring</span></div>
@@ -448,20 +460,31 @@
     <p class="section-sub">The steps always run in the same order — the AI can't decide to skip the security check, because it isn't a choice it gets to make.</p>
     <figure>
       <div class="svg-wrap">
-        <svg viewBox="0 0 1180 620" role="img" aria-label="SecurityScanner runs first, then four agents — Travel, Family, Calendar, Shopping — run concurrently inside a ParallelAgent, then FinanceAgent audits the combined budget, then PlanSynthesizer compiles the final plan. Each agent's tools are marked real or simulated.">
+        <svg viewBox="0 0 1180 620" role="img" aria-label="SecurityScanner runs first. If it finds a threat, the pipeline stops immediately and nothing else runs. Otherwise, four agents — Travel, Family, Calendar, Shopping — run concurrently inside a ParallelAgent, then FinanceAgent audits the combined budget, then PlanSynthesizer compiles the final plan. Each agent's tools are marked real or simulated.">
           <defs>
             <marker id="arrow2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)" />
             </marker>
+            <marker id="arrow2-danger" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--danger)" />
+            </marker>
           </defs>
 
           <rect x="470" y="20" width="240" height="70" rx="10" class="accent-fill accent-stroke" />
-          <text x="590" y="50" text-anchor="middle" class="accent-title" font-size="15">1. SecurityScanner</text>
-          <text x="590" y="70" text-anchor="middle" class="node-sub" font-size="10.5">scan_with_model_armor</text>
-          <text x="590" y="82" text-anchor="middle" font-size="10.5"><tspan class="ok-badge">● REAL</tspan></text>
+          <text x="590" y="50" text-anchor="middle" class="accent-title" font-size="17">1. SecurityScanner</text>
+          <text x="590" y="70" text-anchor="middle" class="node-sub" font-size="11">scan_with_model_armor</text>
+          <text x="590" y="83" text-anchor="middle" font-size="11"><tspan class="ok-badge">● REAL</tspan></text>
 
           <line x1="590" y1="90" x2="590" y2="146" class="edge" marker-end="url(#arrow2)" />
-          <text x="608" y="122" class="edge-label">if input is clean</text>
+          <text x="608" y="122" class="edge-label">clean → continue</text>
+
+          <polyline points="710,45 900,45" class="danger-edge" marker-end="url(#arrow2-danger)" />
+          <text x="740" y="35" class="danger-edge-label">threat found</text>
+
+          <rect x="900" y="12" width="270" height="66" rx="10" class="danger-fill danger-stroke" />
+          <text x="1035" y="38" text-anchor="middle" class="danger-title" font-size="16">🛑 STOP — pipeline halts</text>
+          <text x="1035" y="58" text-anchor="middle" class="node-sub" font-size="10.5">every step below checks for this first</text>
+          <text x="1035" y="71" text-anchor="middle" class="node-sub" font-size="10.5">and skips its own work if set</text>
 
           <rect x="10" y="150" width="1160" height="210" rx="12" class="container-box" />
           <text x="30" y="175" class="container-label">2. ParallelAgent — ResearchPhase (all four run concurrently)</text>
@@ -491,22 +514,23 @@
           <text x="608" y="388" class="edge-label">travel/family/calendar/shopping_results</text>
 
           <rect x="470" y="410" width="240" height="70" rx="10" class="node-fill node-stroke" />
-          <text x="590" y="440" text-anchor="middle" class="node-title" font-size="15">3. FinanceAgent</text>
+          <text x="590" y="440" text-anchor="middle" class="node-title" font-size="17">3. FinanceAgent</text>
           <text x="590" y="460" text-anchor="middle" font-size="10.5"><tspan class="ok-badge">● REAL</tspan><tspan class="node-sub"> check_budget_status, request_human_approval</tspan></text>
 
           <line x1="590" y1="480" x2="590" y2="516" class="edge" marker-end="url(#arrow2)" />
           <text x="608" y="502" class="edge-label">final_plan</text>
 
           <rect x="470" y="520" width="240" height="70" rx="10" class="node-fill node-stroke" />
-          <text x="590" y="550" text-anchor="middle" class="node-title" font-size="15">4. PlanSynthesizer</text>
+          <text x="590" y="550" text-anchor="middle" class="node-title" font-size="17">4. PlanSynthesizer</text>
           <text x="590" y="570" text-anchor="middle" class="node-sub" font-size="10.5">no tools — compiles session state into the final plan</text>
         </svg>
       </div>
-      <figcaption>Every tool shown here — real or simulated — is checked against that agent's permissions before it's allowed to run. If an agent tries to use something it's not permitted to, that's blocked automatically, not just discouraged.</figcaption>
+      <figcaption>Every tool shown here — real or simulated — is checked against that agent's permissions before it's allowed to run. If an agent tries to use something it's not permitted to, that's blocked automatically, not just discouraged. And if SecurityScanner finds a threat, none of the steps below it run at all.</figcaption>
     </figure>
     <div class="legend">
       <div class="legend-item"><span class="legend-swatch" style="background:var(--ok)"></span>Real: actually calls Gemini, the database, or your real calendar</div>
       <div class="legend-item"><span class="legend-swatch" style="background:var(--sim)"></span>Simulated: realistic sample data, no real external call yet</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--danger)"></span>Stop condition: halts the entire run</div>
     </div>
   </section>
 
