@@ -7,13 +7,18 @@ import { travelAgentTools } from '../../tools.js';
 import { createZeroTrustCallback } from '../../gateway/zero-trust.js';
 
 const instructionsPath = join(dirname(fileURLToPath(import.meta.url)), 'instructions.md');
+const instructionText = readFileSync(instructionsPath, 'utf-8');
 
 // Searches flights and hotels, filtered against Memory Bank preferences.
-export const travelAgent = new LlmAgent({
-  name: 'TravelAgent',
-  model: geminiModel,
-  instruction: readFileSync(instructionsPath, 'utf-8'),
-  tools: travelAgentTools,
-  outputKey: 'travel_results',
-  beforeToolCallback: createZeroTrustCallback('travel-agent'),
-});
+export function createTravelAgent(model: string = geminiModel): LlmAgent {
+  return new LlmAgent({
+    name: 'TravelAgent',
+    model,
+    instruction: instructionText,
+    tools: travelAgentTools,
+    outputKey: 'travel_results',
+    beforeToolCallback: createZeroTrustCallback('travel-agent'),
+  });
+}
+
+export const travelAgent = createTravelAgent();
