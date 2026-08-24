@@ -1,6 +1,7 @@
 import { EventType, toStructuredEvents, isFinalResponse, type Event } from '@google/adk';
 import { TelemetryLog, ApprovalItem } from './types.js';
 import { PolicyEngine } from './gateway/policy-engine.js';
+import { SECURITY_BLOCK_PRIMARY_MESSAGE, SECURITY_BLOCK_SKIP_MESSAGE } from './gateway/security-gate.js';
 
 // ADK agent `name`s don't match the registry ids used by the frontend for
 // icon/highlight lookups (src/lib/agents/registry.ts) — bridge the two here.
@@ -72,6 +73,29 @@ export function mapAdkEventToTelemetryLogs(event: Event, sessionId: string, isRe
         break;
 
       case EventType.CONTENT: {
+        // A security-gate skip (gateway/security-gate.ts) — the agent's own
+        // work never ran, ADK's beforeAgentCallback returned this content
+        // directly as its output. isFinalResponse would still be true for
+        // PlanSynthesizer here (it's that agent's one and only event), which
+        // would otherwise get misclassified as execution_success below and
+        // show a misleading "Your plan is ready" hero card for a run that
+        // was actually blocked. Route these to their own types instead.
+        if (structured.content === SECURITY_BLOCK_PRIMARY_MESSAGE) {
+          logs.push(
+            baseLog(event, {
+              type: 'security_alert',
+              message: structured.content,
+              riskLevel: 'critical',
+              threatDetected: true,
+            })
+          );
+          break;
+        }
+        if (structured.content === SECURITY_BLOCK_SKIP_MESSAGE) {
+          logs.push(baseLog(event, { type: 'thought', message: structured.content }));
+          break;
+        }
+
         // Known ADK 1.6.0 limitation: after a resumed approval, the
         // Runner's resumability shortcut re-enters FinanceAgent directly and
         // does NOT hand back off to the outer SequentialAgent to run
@@ -153,7 +177,7 @@ export function mapAdkEventToTelemetryLogs(event: Event, sessionId: string, isRe
           logs.push(
             baseLog(event, {
               type: 'tool_call',
-              message: `Calling ${call.name}(${summarizeArgs(call.args)})`,
+              message: summarizeToolCall(call.name, call.args as Record<string, unknown> | undefined),
             })
           );
         }
@@ -212,9 +236,38 @@ export function mapAdkEventToTelemetryLogs(event: Event, sessionId: string, isRe
         break;
       }
 
-      case EventType.ERROR:
+      case EventType.ERROR: {
+        // Known ADK 1.6.0 resumability gap, confirmed live (2026-08-23): if
+        // an agent calls a LongRunningFunctionTool again in the turn
+        // immediately after a batch resume, Gemini rejects the conversation
+        // with this exact message, regardless of what that call returns.
+        // apps/web's own /api/approvals route no longer drives a real ADK
+        // resume at all for this reason (see finalize-plan.ts) — it bypasses
+        // the agent continuation entirely with one plain Vertex AI call
+        // instead — so this branch shouldn't fire in this app's normal
+        // usage anymore. Left here as a real safety net for any other
+        // consumer of this package that does resume through ADK directly:
+        // rather than surface a raw, alarming, technical error right after
+        // the user just approved something, give one honest, calmer
+        // explanation — the approval genuinely did take effect (logged
+        // before this failure occurred), only the follow-up write-up
+        // didn't complete.
+        const isKnownResumeProtocolError = isResume && structured.error.message.includes('function response parts');
+        if (isKnownResumeProtocolError) {
+          if (!logs.some((l) => l.type === 'execution_success')) {
+            logs.push(
+              baseLog(event, {
+                type: 'execution_success',
+                message:
+                  'Your decision was recorded. LifeGrid hit a known limitation finishing the write-up right after resuming, so no polished summary came back this time — but the approvals you just made did take effect.',
+              })
+            );
+          }
+          break;
+        }
         logs.push(baseLog(event, { type: 'error', message: structured.error.message, riskLevel: 'high' }));
         break;
+      }
 
       default:
         break;
@@ -238,6 +291,35 @@ function summarizeArgs(args: Record<string, unknown> | undefined): string {
   return Object.entries(args)
     .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
     .join(', ');
+}
+
+// Human-readable one-liners for what a tool is about to do — shown in the
+// activity feed while the call is in flight. Falls back to a raw
+// name(args) dump for any tool not covered here, so a new tool never goes
+// unlabeled, just unpolished.
+function summarizeToolCall(name: string | undefined, args: Record<string, unknown> | undefined): string {
+  switch (name) {
+    case 'search_flights':
+      return `Searching flights ${args?.origin ?? '?'} → ${args?.destination ?? '?'} for ${args?.passengers ?? '?'} passenger(s)...`;
+    case 'search_hotels':
+      return `Searching hotels in ${args?.city ?? 'the destination'}...`;
+    case 'search_activities':
+      return `Searching family activities in ${args?.city ?? 'the destination'}...`;
+    case 'check_calendar_availability':
+      return `Checking calendar availability from ${args?.startDate ?? '?'} to ${args?.endDate ?? '?'}...`;
+    case 'search_gear_and_supplies':
+      return `Checking what gear you'd need for ${args?.destination ?? 'the trip'}...`;
+    case 'check_budget_status':
+      return 'Checking budget status...';
+    case 'read_memory_bank':
+      return 'Reading saved preferences...';
+    case 'write_memory_bank':
+      return `Saving a new preference: "${args?.key ?? 'untitled'}"...`;
+    case 'request_human_approval':
+      return `Requesting your approval: "${args?.title ?? 'an action'}" ($${args?.amount ?? '?'})...`;
+    default:
+      return `Calling ${name}(${summarizeArgs(args)})`;
+  }
 }
 
 function summarizeToolResult(name: string | undefined, response: Record<string, unknown>): string {
