@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src=".github/assets/lifegrid-mark.jpg" alt="LifeGrid" width="96" />
-
-<img src=".github/assets/lifegrid-banner.jpg" alt="LifeGrid — Enterprise AI Agent Platform" width="640" />
+<img src=".github/assets/lifegrid-mark.jpg" alt="LifeGrid — Enterprise AI Agent Platform" width="360" />
 
 ### LifeGrid
 
