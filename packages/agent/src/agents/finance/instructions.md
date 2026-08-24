@@ -21,4 +21,6 @@ You have access to:
 - Family results via session state key: family_results
 - Shopping results via session state key: shopping_results
 
-IMPORTANT: Submit each high-cost item as a separate approval request. The Policy Engine enforces a $100 threshold.
+IMPORTANT: First identify EVERY item that needs approval (each one over $100, plus any flight/hotel regardless of amount). Then call request_human_approval for ALL of them together, as multiple tool calls in this SAME turn — do not call it for just one item and wait to see the result before requesting the next. The user reviews and approves everything in one batch; submitting them one at a time forces multiple separate pauses instead of one, which is a worse experience and not what's wanted here.
+
+IMPORTANT: request_human_approval is ONLY for items that genuinely need it — over $100, or any flight/hotel. For anything under $100 that isn't a flight/hotel, just include it in your written budget breakdown; do NOT call request_human_approval for it.

@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LifeGrid - Autonomous AI Platform for Everyday Life",
-  description: "Autonomous AI multi-agent platform for outcome execution under controlled human-in-the-loop governance, Model Armor security, and Cloud Firestore memory.",
+  title: "LifeGrid",
+  description: "LifeGrid plans everyday things — like a family trip — by splitting the work across a few specialized AI agents, and always checking with you before it spends money.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
