@@ -1,16 +1,19 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Navbar } from '@/components/Navbar';
+import { Sidebar, type View } from '@/components/Sidebar';
+import { LifeGridLogo } from '@/components/LifeGridLogo';
+import { BottomTabBar } from '@/components/BottomTabBar';
 import { GoalInputSection } from '@/components/GoalInputSection';
 import { AgentRegistryView } from '@/components/AgentRegistryView';
 import { TelemetryConsole } from '@/components/TelemetryConsole';
+import { ActivityHistory, type PastRun } from '@/components/ActivityHistory';
 import { ApprovalCenterModal } from '@/components/ApprovalCenterModal';
 import { MemoryBankView } from '@/components/MemoryBankView';
-import { ENTERPRISE_AGENT_REGISTRY, TelemetryLog, ApprovalItem, MemoryItem, AgentInfo } from '@lifegrid/agent/client';
+import { SettingsView } from '@/components/SettingsView';
+import { ENTERPRISE_AGENT_REGISTRY, TelemetryLog, ApprovalItem, MemoryItem, AgentInfo, geminiModel } from '@lifegrid/agent/client';
 import { consumeOrchestrationStream } from '@/lib/adk-client';
 import type { OrchestrationMode } from '@/components/GoalInputSection';
-import { ShieldCheck, Database, Activity } from 'lucide-react';
 
 // Cost control (docs/COST_OPTIMIZATION.md #7): only matters once
 // DEMO_API_KEY is set server-side for a public deploy. NEXT_PUBLIC_ vars
@@ -28,7 +31,17 @@ export default function LifeGridDashboard() {
   const [pendingApprovals, setPendingApprovals] = useState<ApprovalItem[]>([]);
   const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [isRunning, setIsRunning] = useState(false);
-  const [activeTab, setActiveTab] = useState<'telemetry' | 'registry' | 'memory'>('telemetry');
+  const [view, setView] = useState<View>('new');
+  const [pastRuns, setPastRuns] = useState<PastRun[]>([]);
+  // Which model Live mode runs use — persisted like pastRuns below.
+  // Defaults to the cheap Lite tier, not Auto, so a first-time user's
+  // spend stays predictable until they opt into something else.
+  const [model, setModel] = useState<string>(geminiModel);
+  // What the *current* run's goal/mode was, so it can be archived into
+  // pastRuns once the next run starts and overwrites `logs`. A ref, not
+  // state — purely bookkeeping for the next handleLaunchGoal call, doesn't
+  // need to trigger a render on its own.
+  const currentRunMetaRef = useRef<{ goal: string; mode: OrchestrationMode; startedAt: string } | null>(null);
   // Set only while a live (real ADK) run's session is active — its presence
   // is how approve/reject decide whether to resume a real paused agent run
   // versus just acknowledging a scripted-mode approval card.
@@ -41,6 +54,12 @@ export default function LifeGridDashboard() {
   // time as the user clicks through them, without triggering re-renders.
   const batchMembersRef = useRef<Record<string, Set<string>>>({});
   const batchDecisionsRef = useRef<Record<string, 'approve' | 'reject'>>({});
+  // Full item details per functionCallId, so the finish line
+  // (api/approvals/route.ts) can build the final summary from what was
+  // actually approved without re-running the agent pipeline. A ref for the
+  // same reason as the two above — items are removed from `pendingApprovals`
+  // as each card is clicked, before the whole batch is complete.
+  const batchItemDetailsRef = useRef<Record<string, ApprovalItem>>({});
 
   // Load initial memories
   useEffect(() => {
@@ -52,21 +71,78 @@ export default function LifeGridDashboard() {
       .catch(err => console.warn('Memory bank load:', err));
   }, []);
 
+  // Past runs live in localStorage — browser/device-local, not synced
+  // anywhere, but enough to let you check back on earlier requests without
+  // adding a backend history store.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('lifegrid_past_runs');
+      if (saved) setPastRuns(JSON.parse(saved));
+    } catch (err) {
+      console.warn('Past runs load:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('lifegrid_past_runs', JSON.stringify(pastRuns));
+    } catch (err) {
+      console.warn('Past runs save:', err);
+    }
+  }, [pastRuns]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('lifegrid_model');
+      if (saved) setModel(saved);
+    } catch (err) {
+      console.warn('Model preference load:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('lifegrid_model', model);
+    } catch (err) {
+      console.warn('Model preference save:', err);
+    }
+  }, [model]);
+
   // Records a newly-arrived approval card's batch membership (see
   // ApprovalItem.batchId) before adding it to visible pendingApprovals.
   const registerApprovalBatch = (item: ApprovalItem) => {
+    batchItemDetailsRef.current[item.id] = item;
     if (!item.batchId) return;
     if (!batchMembersRef.current[item.batchId]) batchMembersRef.current[item.batchId] = new Set();
     batchMembersRef.current[item.batchId].add(item.id);
   };
 
   const handleLaunchGoal = async (prompt: string, budgetCap: number, scenarioId: string | undefined, mode: OrchestrationMode) => {
+    // Archive the run that's about to be overwritten (if any) so it shows
+    // up under "Past activity" instead of just disappearing.
+    if (logs.length > 0 && currentRunMetaRef.current) {
+      const finalLog = logs.find((l) => l.type === 'execution_success');
+      const archived: PastRun = {
+        id: `run-${Date.now()}`,
+        goal: currentRunMetaRef.current.goal,
+        mode: currentRunMetaRef.current.mode,
+        startedAt: currentRunMetaRef.current.startedAt,
+        finished: Boolean(finalLog),
+        finalMessage: finalLog?.message,
+        logs,
+      };
+      setPastRuns((prev) => [archived, ...prev].slice(0, 20));
+    }
+    currentRunMetaRef.current = { goal: prompt, mode, startedAt: new Date().toLocaleTimeString() };
+
     setIsRunning(true);
+    setView('activity');
     setLogs([]);
     setPendingApprovals([]);
     setLiveSessionId(undefined);
     batchMembersRef.current = {};
     batchDecisionsRef.current = {};
+    batchItemDetailsRef.current = {};
     setActiveAgentId('orchestrator');
 
     if (mode === 'live') {
@@ -74,7 +150,7 @@ export default function LifeGridDashboard() {
         const response = await fetch('/api/orchestrate', {
           method: 'POST',
           headers: LIVE_MODE_HEADERS,
-          body: JSON.stringify({ customPrompt: prompt, budgetCap, scenarioId, mode: 'live' })
+          body: JSON.stringify({ customPrompt: prompt, budgetCap, scenarioId, mode: 'live', model })
         });
 
         await consumeOrchestrationStream(response, {
@@ -192,14 +268,30 @@ export default function LifeGridDashboard() {
       const allDecided = members ? Array.from(members).every((memberId) => batchDecisionsRef.current[memberId] !== undefined) : true;
       if (!allDecided) return;
 
-      const decisions = (members ? Array.from(members) : [id]).map((functionCallId) => ({
-        functionCallId,
-        action: batchDecisionsRef.current[functionCallId],
-      }));
+      const decisions = (members ? Array.from(members) : [id]).map((functionCallId) => {
+        const detail = batchItemDetailsRef.current[functionCallId];
+        return {
+          functionCallId,
+          action: batchDecisionsRef.current[functionCallId],
+          title: detail?.title ?? 'Untitled action',
+          amount: detail?.amount ?? 0,
+          actionType: detail?.actionType ?? 'budget_override',
+          vendor: detail?.vendor,
+        };
+      });
       if (batchId) {
         delete batchMembersRef.current[batchId];
-        for (const d of decisions) delete batchDecisionsRef.current[d.functionCallId];
+        for (const d of decisions) {
+          delete batchDecisionsRef.current[d.functionCallId];
+          delete batchItemDetailsRef.current[d.functionCallId];
+        }
       }
+
+      // The approval banner shows on every tab, not just Activity — jump
+      // there now so the final summary that's about to arrive is actually
+      // visible, instead of landing silently in state on a tab that isn't
+      // rendering the log feed.
+      setView('activity');
 
       const response = await fetch('/api/approvals', {
         method: 'POST',
@@ -229,7 +321,12 @@ export default function LifeGridDashboard() {
       return;
     }
 
-    // Scripted mode: no real run to resume, just log the decision.
+    // Scripted mode: no real run to resume, just log the decision. Not
+    // 'execution_success' — that type is reserved for the one real final
+    // plan (already posted earlier in this same canned run); tagging a
+    // small per-item "transaction completed" note the same way let it
+    // overwrite the actual trip summary in the pinned "Your plan is ready"
+    // card, since that card just shows the most recent execution_success.
     setLogs(prev => [
       action === 'approve'
         ? {
@@ -237,7 +334,7 @@ export default function LifeGridDashboard() {
             timestamp: new Date().toLocaleTimeString(),
             agentId: item.agentId,
             agentName: item.agentName,
-            type: 'execution_success',
+            type: 'thought',
             message: `USER APPROVED: Authorization granted for "${item.title}" ($${item.amount.toLocaleString()}). Transaction completed successfully.`,
             riskLevel: 'low'
           }
@@ -279,82 +376,65 @@ export default function LifeGridDashboard() {
     setMemories(prev => prev.filter(m => m.id !== id));
   };
 
+  const VIEW_COPY: Record<View, { title: string; subtitle: string }> = {
+    new: { title: 'New request', subtitle: 'Tell LifeGrid what you need done.' },
+    activity: { title: 'Activity', subtitle: "What's happening right now, step by step." },
+    agents: { title: 'Agents', subtitle: 'The specialists LifeGrid can call on, and what each is allowed to do.' },
+    memory: { title: 'Memory', subtitle: 'What LifeGrid remembers about you.' },
+    settings: { title: 'Settings', subtitle: 'Configure the model LifeGrid uses and your connected accounts.' },
+  };
+  const { title, subtitle } = VIEW_COPY[view];
+  const containerWidth = view === 'agents' ? 'max-w-5xl' : 'max-w-3xl';
+
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-[#07090e] text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-200 selection:bg-indigo-500/30 selection:text-indigo-200">
-      {/* Navbar Header */}
-      <Navbar />
+    <div className="min-h-screen bg-bg text-ink flex transition-colors duration-200">
+      <Sidebar
+        view={view}
+        onNavigate={setView}
+        activityCount={logs.length}
+        agentCount={agents.length}
+        memoryCount={memories.length}
+      />
 
-      {/* Main Content Body */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
-        {/* Goal Launch & Input Section */}
-        <GoalInputSection onLaunchGoal={handleLaunchGoal} isRunning={isRunning} />
-
-        {/* Approval Center (Human in the loop safeguard) */}
-        <ApprovalCenterModal
-          items={pendingApprovals}
-          onApprove={handleApproveAction}
-          onReject={handleRejectAction}
-        />
-
-        {/* Workspace Navigation Tabs */}
-        <div className="flex items-center space-x-2 border-b border-slate-300 dark:border-slate-800 pb-2">
-          <button
-            onClick={() => setActiveTab('telemetry')}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'telemetry'
-                ? 'bg-indigo-600/25 text-indigo-800 dark:text-indigo-300 border border-indigo-500/40 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-900/50'
-            }`}
-          >
-            <Activity className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
-            <span>Telemetry Stream ({logs.length})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('registry')}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'registry'
-                ? 'bg-indigo-600/25 text-indigo-800 dark:text-indigo-300 border border-indigo-500/40 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-900/50'
-            }`}
-          >
-            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <span>Agent Directory ({agents.length})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('memory')}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'memory'
-                ? 'bg-indigo-600/25 text-indigo-800 dark:text-indigo-300 border border-indigo-500/40 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-900/50'
-            }`}
-          >
-            <Database className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-            <span>Memory Bank ({memories.length})</span>
-          </button>
+      <div className="flex-1 min-w-0 flex flex-col">
+        {/* Mobile top bar */}
+        <div className="md:hidden sticky top-0 z-30 flex items-center gap-2.5 px-4 py-3 border-b border-border bg-surface">
+          <LifeGridLogo />
+          <span className="font-semibold text-sm">LifeGrid</span>
         </div>
 
-        {/* Tab Panel Content */}
-        <div>
-          {activeTab === 'telemetry' && <TelemetryConsole logs={logs} />}
-          {activeTab === 'registry' && (
-            <AgentRegistryView agents={agents} activeAgentId={activeAgentId} />
-          )}
-          {activeTab === 'memory' && (
-            <MemoryBankView
-              memories={memories}
-              onAddMemory={handleAddMemory}
-              onDeleteMemory={handleDeleteMemory}
-            />
-          )}
-        </div>
-      </main>
+        <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
+          <div className={`${containerWidth} mx-auto px-5 sm:px-8 py-8 sm:py-10 space-y-8 transition-[max-width]`}>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+              <p className="text-sm text-muted mt-1">{subtitle}</p>
+            </div>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-300 dark:border-slate-800/80 py-4 px-6 text-center text-xs text-slate-600 dark:text-slate-400 font-medium">
-        LifeGrid Autonomous AI Platform • Built for Google Gemini & Cloud Run Fortified Enterprise Fleet
-      </footer>
+            {pendingApprovals.length > 0 && (
+              <ApprovalCenterModal
+                items={pendingApprovals}
+                onApprove={handleApproveAction}
+                onReject={handleRejectAction}
+              />
+            )}
+
+            {view === 'new' && <GoalInputSection onLaunchGoal={handleLaunchGoal} isRunning={isRunning} />}
+            {view === 'activity' && (
+              <>
+                <TelemetryConsole logs={logs} isRunning={isRunning} />
+                <ActivityHistory runs={pastRuns} />
+              </>
+            )}
+            {view === 'agents' && <AgentRegistryView agents={agents} activeAgentId={activeAgentId} />}
+            {view === 'memory' && (
+              <MemoryBankView memories={memories} onAddMemory={handleAddMemory} onDeleteMemory={handleDeleteMemory} />
+            )}
+            {view === 'settings' && <SettingsView model={model} onModelChange={setModel} />}
+          </div>
+        </main>
+      </div>
+
+      <BottomTabBar view={view} onNavigate={setView} />
     </div>
   );
 }
