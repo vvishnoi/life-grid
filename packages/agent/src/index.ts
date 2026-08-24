@@ -18,16 +18,28 @@ export {
   shoppingAgent,
   financeAgent,
   planSynthesizer,
+  buildLifeGridOrchestrator,
 } from './agents/index.js';
-export { geminiModel } from './model.js';
+export { geminiModel, AVAILABLE_MODELS, AUTO_MODEL, type ModelOption } from './model.js';
 
 // ── Runner (drives the agents; owns session state) ──────────────────────
-export { lifeGridRunner, sessionService, LIFEGRID_APP_NAME, LIFEGRID_USER_ID } from './runner.js';
+export {
+  lifeGridRunner,
+  getLifeGridRunner,
+  sessionService,
+  LIFEGRID_APP_NAME,
+  LIFEGRID_USER_ID,
+} from './runner.js';
 export { buildApprovalResumeMessage, type ApprovalDecision } from './approvals.js';
 
 // ── Streaming a run out as telemetry ────────────────────────────────────
-export { streamAdkEvents, type OrchestrationFrame } from './stream-response.js';
+export { streamAdkEvents, streamFinalPlan, type OrchestrationFrame } from './stream-response.js';
 export { mapAdkEventToTelemetryLogs } from './event-mapper.js';
+export {
+  synthesizeFinalPlan,
+  type ApprovalDecisionDetail,
+  type SessionResearchContext,
+} from './finalize-plan.js';
 
 // ── Governance gateways (Agent Gateway / Model Armor / Zero-Trust pillars) ─
 export { ModelArmorGateway, type SecurityScanResult } from './gateway/model-armor.js';
