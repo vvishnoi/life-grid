@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { ModelArmorGateway } from './gateway/model-armor.js';
 import { PolicyEngine } from './gateway/policy-engine.js';
 import { ZeroTrustGateway } from './gateway/zero-trust.js';
+import { SECURITY_THREAT_STATE_KEY } from './gateway/security-gate.js';
 import { memoryBank } from './memory/index.js';
 
 // ─────────────────────────────────────────────────────
@@ -59,8 +60,14 @@ export const scanWithModelArmor = new FunctionTool({
     content: z.string().describe('The content to scan for threats'),
     source: z.string().optional().describe('Where this content came from, e.g. "external_url"'),
   }),
-  execute: async ({ content, source }) => {
+  execute: async ({ content, source }, tool_context?: Context) => {
     const result = ModelArmorGateway.inspectInput(content);
+    // Flips the flag every downstream agent's beforeAgentCallback checks
+    // (see gateway/security-gate.ts) — this is what actually stops the
+    // pipeline, not just what reports on it after the fact.
+    if (!result.isSafe) {
+      tool_context?.state?.set(SECURITY_THREAT_STATE_KEY, true);
+    }
     return {
       isSafe: result.isSafe,
       threatCategory: result.threatCategory,
@@ -97,6 +104,14 @@ export const requestApproval = new LongRunningFunctionTool({
   execute: async ({ agentName, actionType, title, summary, amount, vendor }, tool_context?: Context) => {
     // Resumed call: the framework re-invokes execute with the human's
     // decision attached once /api/approvals answers the pending confirmation.
+    // NOTE: apps/web's /api/approvals route no longer actually drives a
+    // resume through the ADK Runner (see packages/agent/src/finalize-plan.ts
+    // for why — letting FinanceAgent's own continuation run after a resume
+    // hit a real, reproducible ADK 1.6.0 protocol error, confirmed live and
+    // not fixable from three different mitigations tried in application
+    // code). This branch is kept because it's correct, reusable ADK tool
+    // behavior for any other consumer of this package that does drive a
+    // real resume — just not exercised by this app's own route anymore.
     if (tool_context?.toolConfirmation) {
       return {
         approved: tool_context.toolConfirmation.confirmed,
