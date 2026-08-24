@@ -1,0 +1,86 @@
+# Images live in Artifact Registry, not the deprecated gcr.io/Container
+# Registry — new GCP projects often can't provision GCR cleanly at all.
+# scripts/gcp-up.sh creates the "life-grid" repo this path references.
+#
+# Image tag uses $BUILD_ID, not $COMMIT_SHA — the latter is only populated
+# when Cloud Build is triggered from an actual git commit (a Source Repo /
+# GitHub trigger); it's empty for `gcloud builds submit` from local source,
+# which is how scripts/gcp-up.sh invokes this. $BUILD_ID is always set.
+#
+# us-central1 is repeated literally (not templated) in a few places below —
+# Cloud Build substitution defaults can't reference built-ins like
+# $PROJECT_ID reliably, so the image path is written inline per step instead
+# of through an indirection. Must match scripts/gcp-up.sh's AR_LOCATION.
+
+steps:
+  # 1. Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/life-grid/life-grid:$BUILD_ID', '.']
+
+  # 2. Push container to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/life-grid/life-grid:$BUILD_ID']
+
+  # 3. Deploy to Google Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'life-grid'
+      - '--image'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/life-grid/life-grid:$BUILD_ID'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      # Dedicated least-privilege runtime identity (created by
+      # scripts/gcp-up.sh) instead of the broad default Compute Engine SA —
+      # matches the project's own zero-trust/Agent-Identity narrative.
+      - '--service-account'
+      - 'life-grid-runtime@$PROJECT_ID.iam.gserviceaccount.com'
+      # Cost controls — see docs/COST_OPTIMIZATION.md. Scale to zero when
+      # idle, cap concurrent instances, keep the footprint small.
+      - '--min-instances'
+      - '0'
+      - '--max-instances'
+      - '2'
+      - '--memory'
+      - '512Mi'
+      - '--cpu'
+      - '1'
+      # Live Agents mode (real ADK + Vertex AI pipeline) needs these; the
+      # deploy's runtime service account also needs roles/aiplatform.user.
+      # GOOGLE_CLOUD_LOCATION must be "global", not the Cloud Run service
+      # region above — gemini-3.5-flash/-lite only resolve on Vertex AI's
+      # global endpoint in this project (confirmed via direct API probe,
+      # both 404 on us-central1). These two locations are independent:
+      # the container runs in us-central1, its outbound Vertex AI calls
+      # target global.
+      # ${_DEMO_API_KEY} is passed via scripts/gcp-up.sh's --substitutions
+      # flag (empty string if DEMO_API_KEY isn't set in the environment) —
+      # gates the paid /api/orchestrate "live" path so public traffic can't
+      # run up Vertex AI spend. AUTH_TRUST_HOST + AUTH_URL are both required
+      # for Auth.js (apps/web/src/auth.ts) behind Cloud Run's proxy —
+      # trustHost alone was NOT enough, confirmed live: without an explicit
+      # AUTH_URL, Auth.js reported its own callback URL as
+      # https://0.0.0.0:8080/... (the container's internal bind address,
+      # from HOSTNAME/PORT) instead of the real public URL, which would
+      # send real sign-in attempts to a dead address. AUTH_URL must be
+      # updated here if the Cloud Run service URL ever changes (see
+      # docs/IMPLEMENTATION_PLAN.md §3.6 for how to check the current one).
+      # GOOGLE_OAUTH_CLIENT_ID is a public identifier (sent to the browser
+      # as part of the OAuth redirect anyway), safe as a plain env var —
+      # its secret half is not, see --set-secrets below.
+      - '--set-env-vars'
+      - 'GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=global,DEMO_API_KEY=${_DEMO_API_KEY},AUTH_TRUST_HOST=true,AUTH_URL=https://life-grid-q5fdvprapa-uc.a.run.app,GOOGLE_OAUTH_CLIENT_ID=${_GOOGLE_OAUTH_CLIENT_ID}'
+      # Real credentials (session-signing key, OAuth client secret) — via
+      # Secret Manager, not plaintext, unlike DEMO_API_KEY above (that one's
+      # just an anti-abuse deterrent; these can forge sessions or impersonate
+      # the app to Google). Both secrets are provisioned by scripts/gcp-up.sh.
+      - '--set-secrets'
+      - 'AUTH_SECRET=lifegrid-auth-secret:latest,GOOGLE_OAUTH_CLIENT_SECRET=lifegrid-google-oauth-client-secret:latest'
+
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/life-grid/life-grid:$BUILD_ID'

@@ -1,0 +1,542 @@
+<title>LifeGrid Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg: #F6F7FB;
+    --surface: #FFFFFF;
+    --surface-2: #EEF0F7;
+    --ink: #12172A;
+    --muted: #5B6478;
+    --border: #D8DCE8;
+    --accent: #5850EC;
+    --accent-soft: #ECEBFE;
+    --gov: #0E7C86;
+    --gov-soft: #E3F4F5;
+    --ok: #0E8F5E;
+    --ok-soft: #E3F6EC;
+    --sim: #8A8FA0;
+    --sim-soft: #EEEFF4;
+    --danger: #C41E3A;
+    --danger-soft: #FBE7EA;
+    --shadow: 0 1px 2px rgba(18,23,42,0.04), 0 8px 24px rgba(18,23,42,0.06);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0A0E1B;
+      --surface: #121729;
+      --surface-2: #1A2038;
+      --ink: #E8EAF5;
+      --muted: #939CB5;
+      --border: #262E4B;
+      --accent: #8B85FF;
+      --accent-soft: #211F45;
+      --gov: #4FD7DE;
+      --gov-soft: #14313A;
+      --ok: #3DDC91;
+      --ok-soft: #133328;
+      --sim: #7B8299;
+      --sim-soft: #1A2038;
+      --danger: #FF6B7A;
+      --danger-soft: #3A1620;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #0A0E1B;
+    --surface: #121729;
+    --surface-2: #1A2038;
+    --ink: #E8EAF5;
+    --muted: #939CB5;
+    --border: #262E4B;
+    --accent: #8B85FF;
+    --accent-soft: #211F45;
+    --gov: #4FD7DE;
+    --gov-soft: #14313A;
+    --ok: #3DDC91;
+    --ok-soft: #133328;
+    --sim: #7B8299;
+    --sim-soft: #1A2038;
+    --danger: #FF6B7A;
+    --danger-soft: #3A1620;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.5;
+    margin: 0;
+    padding: 48px 24px 80px;
+  }
+
+  .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+
+  main {
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+
+  header.page {
+    margin-bottom: 40px;
+  }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 10px;
+  }
+
+  h1 {
+    font-size: clamp(32px, 5vw, 44px);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0 0 12px;
+    text-wrap: balance;
+  }
+
+  .lede {
+    font-size: 17px;
+    color: var(--muted);
+    max-width: 68ch;
+    margin: 0 0 22px;
+  }
+
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .fact {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--ink);
+  }
+
+  section.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 28px 22px;
+    box-shadow: var(--shadow);
+    margin-bottom: 28px;
+  }
+
+  h2 {
+    font-size: 21px;
+    font-weight: 600;
+    margin: 0 0 4px;
+  }
+
+  .section-sub {
+    color: var(--muted);
+    font-size: 14.5px;
+    margin: 0 0 20px;
+  }
+
+  figure {
+    margin: 0;
+  }
+
+  .explainer {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 22px 28px;
+  }
+
+  .explainer-item h3 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 8px;
+    color: var(--accent);
+  }
+
+  .explainer-item p {
+    margin: 0;
+    font-size: 14.5px;
+    color: var(--ink);
+    line-height: 1.6;
+  }
+
+  .explainer-item strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .svg-wrap {
+    overflow-x: auto;
+  }
+
+  svg { display: block; width: 100%; height: auto; }
+
+  figcaption {
+    margin-top: 16px;
+    font-size: 13.5px;
+    color: var(--muted);
+    max-width: 78ch;
+  }
+
+  /* --- diagram node styling (applies to rect/text drawn with these classes) --- */
+  .node-fill { fill: var(--surface-2); }
+  .node-stroke { stroke: var(--border); stroke-width: 1.5; }
+  .node-title { fill: var(--ink); font-family: "IBM Plex Sans", sans-serif; font-weight: 600; }
+  .node-sub { fill: var(--muted); font-family: "IBM Plex Mono", monospace; }
+  .gov-fill { fill: var(--gov-soft); }
+  .gov-stroke { stroke: var(--gov); stroke-width: 1.5; }
+  .gov-title { fill: var(--gov); font-family: "IBM Plex Sans", sans-serif; font-weight: 600; }
+  .accent-fill { fill: var(--accent-soft); }
+  .accent-stroke { stroke: var(--accent); stroke-width: 1.5; }
+  .accent-title { fill: var(--accent); font-family: "IBM Plex Sans", sans-serif; font-weight: 600; }
+  .edge { stroke: var(--muted); stroke-width: 1.6; fill: none; }
+  .edge-label { fill: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 12px; }
+  .danger-fill { fill: var(--danger-soft); }
+  .danger-stroke { stroke: var(--danger); stroke-width: 1.5; }
+  .danger-title { fill: var(--danger); font-family: "IBM Plex Sans", sans-serif; font-weight: 700; }
+  .danger-edge { stroke: var(--danger); stroke-width: 1.8; fill: none; }
+  .danger-edge-label { fill: var(--danger); font-family: "IBM Plex Mono", monospace; font-size: 12px; font-weight: 600; }
+  .container-box { fill: none; stroke: var(--border); stroke-width: 1.5; stroke-dasharray: 5 5; }
+  .container-label { fill: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; }
+  .ok-badge { fill: var(--ok); font-family: "IBM Plex Mono", monospace; font-weight: 600; }
+  .sim-badge { fill: var(--sim); font-family: "IBM Plex Mono", monospace; font-weight: 600; }
+
+  /* --- pillar strip --- */
+  .pillars {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+  }
+
+  .pillar {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    background: var(--surface-2);
+  }
+
+  .pillar-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    flex: none;
+  }
+  .dot.done { background: var(--ok); }
+  .dot.partial { background: #C9A227; }
+
+  .pillar-name {
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  .pillar-note {
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    margin-top: 18px;
+    font-size: 13px;
+    color: var(--muted);
+    align-items: center;
+  }
+
+  .legend-item { display: flex; align-items: center; gap: 7px; }
+  .legend-swatch { width: 14px; height: 14px; border-radius: 4px; flex: none; }
+
+  footer.page {
+    margin-top: 44px;
+    padding-top: 22px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 13px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+  }
+
+  footer.page .mono { color: var(--ink); }
+</style>
+
+<main>
+  <header class="page">
+    <p class="eyebrow">Fortified Enterprise Fleet — Hackathon Architecture</p>
+    <h1>LifeGrid</h1>
+    <p class="lede">LifeGrid plans household stuff — like a family trip — by splitting the work across several small AI agents instead of one AI trying to do everything itself.</p>
+    <div class="facts">
+      <span class="fact">Gemini 3.5 Flash-Lite / Flash via Vertex AI</span>
+      <span class="fact">Google ADK — SequentialAgent + ParallelAgent</span>
+      <span class="fact">Cloud Run</span>
+      <span class="fact">Firestore Memory Bank</span>
+      <span class="fact">OAuth-gated real Google Calendar</span>
+      <span class="fact">Model choice in Settings — Lite / Standard / Auto</span>
+    </div>
+  </header>
+
+  <section class="card">
+    <h2>How it works, in plain terms</h2>
+    <div class="explainer">
+      <div class="explainer-item">
+        <h3>The pattern, and why</h3>
+        <p>Instead of one AI model freely deciding what to do next, we wrote the steps as a fixed sequence: check for anything unsafe first, then do four pieces of research at once, then check the budget, then write up the plan. Each step is a separate, smaller AI call. We fixed the order on purpose — if the AI were choosing its own next step, a cleverly worded request could talk it into skipping the safety check. A fixed sequence can't be talked out of a step that isn't there to skip. And if the safety check <em>does</em> find something, the whole run stops right there — every later step checks for that before doing any work, so a blocked threat actually halts the pipeline instead of just being logged while everything else runs anyway.</p>
+      </div>
+      <div class="explainer-item">
+        <h3>How a request moves through the system</h3>
+        <p>You type a goal and a budget in the browser. That goes to our server, which starts the agents and streams back what each one is doing as it happens, instead of making you wait for a final answer. Along the way, agents look up things you've told it before — like "no early flights" — from a small database. Before anything that would spend money over $100, or book travel at all, it stops and asks you to approve it first.</p>
+      </div>
+      <div class="explainer-item">
+        <h3>What Google technology we're using</h3>
+        <p><strong>Gemini</strong> (via Vertex AI) does the actual thinking for each agent. <strong>Google ADK</strong> is the framework that runs the agents in sequence and in parallel. <strong>Cloud Run</strong> hosts the app. <strong>Firestore</strong> is the database that remembers your preferences between visits. <strong>Cloud Trace</strong> records what each agent did, for debugging. And if you sign in with Google, it reads your real <strong>Google Calendar</strong> (view-only) instead of guessing your schedule.</p>
+      </div>
+      <div class="explainer-item">
+        <h3>What we'd add for a real version</h3>
+        <p>Today, flight, hotel, activity, and gear results are realistic sample data, not real bookings — only the calendar check is hooked up to something real. Next would be connecting real flight/hotel search, a couple more safety checks we haven't built yet, and making sure a request doesn't get lost if the server restarts partway through.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>System architecture</h2>
+    <p class="section-sub">The path one request actually takes, from your browser to Google Cloud and back.</p>
+    <figure>
+      <div class="svg-wrap">
+        <svg viewBox="0 0 1120 660" role="img" aria-label="A request enters through the Next.js UI, streams over SSE to Cloud Run API routes, which start an ADK Runner. The orchestrator's pipeline is checked by three governance gateways, reads and writes two state stores, and calls out to Vertex AI, Cloud Trace, and the Google Calendar API.">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)" />
+            </marker>
+          </defs>
+
+          <!-- Band 1: Browser -->
+          <rect x="310" y="20" width="500" height="70" rx="10" class="node-fill node-stroke" />
+          <text x="560" y="50" text-anchor="middle" class="node-title" font-size="17">Browser — Next.js UI</text>
+          <text x="560" y="72" text-anchor="middle" class="node-sub" font-size="12">page.tsx · Sign in with Google (read-only Calendar)</text>
+
+          <line x1="560" y1="90" x2="560" y2="126" class="edge" marker-end="url(#arrow)" />
+          <text x="576" y="112" class="edge-label">SSE: TelemetryLog frames</text>
+
+          <!-- Band 2: API routes -->
+          <rect x="260" y="130" width="600" height="70" rx="10" class="node-fill node-stroke" />
+          <text x="560" y="160" text-anchor="middle" class="node-title" font-size="17">Next.js API Routes — Cloud Run</text>
+          <text x="560" y="182" text-anchor="middle" class="node-sub" font-size="11.5">/orchestrate · /approvals · /memory · /registry · /auth/[...nextauth]</text>
+
+          <line x1="560" y1="200" x2="560" y2="236" class="edge" marker-end="url(#arrow)" />
+          <text x="576" y="222" class="edge-label">runAsync()</text>
+
+          <!-- Band 3: ADK runtime -->
+          <rect x="90" y="240" width="940" height="80" rx="10" class="accent-fill accent-stroke" />
+          <text x="560" y="270" text-anchor="middle" class="accent-title" font-size="17">ADK Runner → lifeGridOrchestrator</text>
+          <text x="560" y="292" text-anchor="middle" class="node-sub" font-size="11.5">fixed SequentialAgent — a model can't skip a step. Pipeline detail: Fig. 2</text>
+          <text x="560" y="310" text-anchor="middle" class="node-sub" font-size="11.5">every tool call below passes through Zero-Trust's beforeToolCallback first</text>
+
+          <!-- fan-out to band 4 -->
+          <line x1="140" y1="320" x2="140" y2="396" class="edge" marker-end="url(#arrow)" />
+          <line x1="350" y1="320" x2="350" y2="396" class="edge" marker-end="url(#arrow)" />
+          <line x1="560" y1="320" x2="560" y2="396" class="edge" marker-end="url(#arrow)" />
+          <line x1="770" y1="320" x2="770" y2="396" class="edge" marker-end="url(#arrow)" />
+          <line x1="980" y1="320" x2="980" y2="396" class="edge" marker-end="url(#arrow)" />
+          <text x="106" y="360" class="edge-label">scans input</text>
+          <text x="300" y="360" class="edge-label">checks spend / booking</text>
+          <text x="503" y="378" class="edge-label">checks every</text>
+          <text x="516" y="391" class="edge-label">tool call</text>
+          <text x="736" y="360" class="edge-label">reads / writes</text>
+          <text x="920" y="378" class="edge-label">reads / writes</text>
+          <text x="912" y="391" class="edge-label">(cross-session)</text>
+
+          <!-- skip-connections to GCP band, routed through the gaps between band-4 boxes -->
+          <polyline points="455,320 455,486 230,556" class="edge" marker-end="url(#arrow)" />
+          <text x="270" y="512" class="edge-label">Gemini calls</text>
+          <polyline points="665,320 665,486 560,556" class="edge" marker-end="url(#arrow)" />
+          <text x="600" y="512" class="edge-label">OTel spans</text>
+
+          <!-- Band 4: governance + state -->
+          <rect x="50" y="400" width="180" height="70" rx="10" class="gov-fill gov-stroke" />
+          <text x="140" y="430" text-anchor="middle" class="gov-title" font-size="14">Model Armor</text>
+          <text x="140" y="450" text-anchor="middle" class="node-sub" font-size="10.5">prompt-injection scan</text>
+          <text x="140" y="463" text-anchor="middle" class="node-sub" font-size="10.5">(regex, partial)</text>
+
+          <rect x="260" y="400" width="180" height="70" rx="10" class="gov-fill gov-stroke" />
+          <text x="350" y="430" text-anchor="middle" class="gov-title" font-size="14">Policy Engine</text>
+          <text x="350" y="450" text-anchor="middle" class="node-sub" font-size="10.5">&gt;$100 or any travel</text>
+          <text x="350" y="463" text-anchor="middle" class="node-sub" font-size="10.5">booking → human approval</text>
+
+          <rect x="470" y="400" width="180" height="70" rx="10" class="gov-fill gov-stroke" />
+          <text x="560" y="430" text-anchor="middle" class="gov-title" font-size="14">Zero-Trust</text>
+          <text x="560" y="450" text-anchor="middle" class="node-sub" font-size="10.5">per-agent tool</text>
+          <text x="560" y="463" text-anchor="middle" class="node-sub" font-size="10.5">permission check</text>
+
+          <rect x="680" y="400" width="180" height="70" rx="10" class="node-fill node-stroke" />
+          <text x="770" y="430" text-anchor="middle" class="node-title" font-size="14">Session State</text>
+          <text x="770" y="450" text-anchor="middle" class="node-sub" font-size="10.5">per-run, ephemeral</text>
+          <text x="770" y="463" text-anchor="middle" class="node-sub" font-size="10.5">InMemorySessionService</text>
+
+          <rect x="890" y="400" width="180" height="70" rx="10" class="node-fill node-stroke" />
+          <text x="980" y="426" text-anchor="middle" class="node-title" font-size="14">Memory Bank</text>
+          <text x="980" y="446" text-anchor="middle" class="node-sub" font-size="10.5">Firestore (Cloud Run) /</text>
+          <text x="980" y="459" text-anchor="middle" class="node-sub" font-size="10.5">in-memory (local) — auto</text>
+
+          <!-- Session state -> Calendar API -->
+          <polyline points="770,470 770,530 890,556" class="edge" marker-end="url(#arrow)" />
+          <text x="800" y="516" class="edge-label">OAuth token</text>
+
+          <!-- Band 5: GCP -->
+          <rect x="90" y="560" width="280" height="70" rx="10" class="node-fill node-stroke" />
+          <text x="230" y="588" text-anchor="middle" class="node-title" font-size="14">Vertex AI</text>
+          <text x="230" y="608" text-anchor="middle" class="node-sub" font-size="10.5">Gemini 3.5-flash-lite</text>
+
+          <rect x="420" y="560" width="280" height="70" rx="10" class="node-fill node-stroke" />
+          <text x="560" y="588" text-anchor="middle" class="node-title" font-size="14">Cloud Trace</text>
+          <text x="560" y="608" text-anchor="middle" class="node-sub" font-size="10.5">OTel GenAI spans</text>
+
+          <rect x="750" y="560" width="280" height="70" rx="10" class="node-fill node-stroke" />
+          <text x="890" y="588" text-anchor="middle" class="node-title" font-size="14">Google Calendar API</text>
+          <text x="890" y="608" text-anchor="middle" class="node-sub" font-size="10.5">read-only, real when connected</text>
+        </svg>
+      </div>
+      <figcaption>Every arrow above is a real, working connection we've tested, not a planned one. The one gap not shown here: a request is still tied to one open connection for its whole run — if that connection drops, the run doesn't resume on its own yet.</figcaption>
+    </figure>
+  </section>
+
+  <section class="card">
+    <h2>What's actually built vs. still in progress</h2>
+    <p class="section-sub">The hackathon track asks for seven specific capabilities. Here's the honest status of each — nothing below is aspirational.</p>
+    <div class="pillars">
+      <div class="pillar">
+        <div class="pillar-head"><span class="dot done"></span><span class="pillar-name">Agent directory</span></div>
+        <div class="pillar-note">A list of all 7 agents and what each one is allowed to do, viewable live in the app.</div>
+      </div>
+      <div class="pillar">
+        <div class="pillar-head"><span class="dot partial"></span><span class="pillar-name">Long-running tasks</span></div>
+        <div class="pillar-note">Runs today, but a run is still tied to one open connection rather than able to survive a restart.</div>
+      </div>
+      <div class="pillar">
+        <div class="pillar-head"><span class="dot done"></span><span class="pillar-name">Memory of your preferences</span></div>
+        <div class="pillar-note">Saved for real in a Google Cloud database once deployed; kept in memory only during local testing.</div>
+      </div>
+      <div class="pillar">
+        <div class="pillar-head"><span class="dot done"></span><span class="pillar-name">Permission checks per agent</span></div>
+        <div class="pillar-note">Every agent can only use the tools it's been given permission for — anything else is blocked automatically.</div>
+      </div>
+      <div class="pillar">
+        <div class="pillar-head"><span class="dot done"></span><span class="pillar-name">Spend/booking approval</span></div>
+        <div class="pillar-note">One shared rule, checked the same way everywhere: over $100, or any travel booking, needs your OK first.</div>
+      </div>
+      <div class="pillar">
+        <div class="pillar-head"><span class="dot partial"></span><span class="pillar-name">Security scanning</span></div>
+        <div class="pillar-note">Catches attempts to manipulate the AI through your input — including ones hidden inside a URL — and a detected threat genuinely stops the rest of the run, not just a warning. Doesn't yet check tool results or catch leaked personal data.</div>
+      </div>
+      <div class="pillar">
+        <div class="pillar-head"><span class="dot done"></span><span class="pillar-name">Activity monitoring</span></div>
+        <div class="pillar-note">A live log you can watch as it happens, plus a technical trace of every step saved to Google Cloud.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Multi-agent pipeline</h2>
+    <p class="section-sub">The steps always run in the same order — the AI can't decide to skip the security check, because it isn't a choice it gets to make.</p>
+    <figure>
+      <div class="svg-wrap">
+        <svg viewBox="0 0 1180 620" role="img" aria-label="SecurityScanner runs first. If it finds a threat, the pipeline stops immediately and nothing else runs. Otherwise, four agents — Travel, Family, Calendar, Shopping — run concurrently inside a ParallelAgent, then FinanceAgent audits the combined budget, then PlanSynthesizer compiles the final plan. Each agent's tools are marked real or simulated.">
+          <defs>
+            <marker id="arrow2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)" />
+            </marker>
+            <marker id="arrow2-danger" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--danger)" />
+            </marker>
+          </defs>
+
+          <rect x="470" y="20" width="240" height="70" rx="10" class="accent-fill accent-stroke" />
+          <text x="590" y="50" text-anchor="middle" class="accent-title" font-size="17">1. SecurityScanner</text>
+          <text x="590" y="70" text-anchor="middle" class="node-sub" font-size="11">scan_with_model_armor</text>
+          <text x="590" y="83" text-anchor="middle" font-size="11"><tspan class="ok-badge">● REAL</tspan></text>
+
+          <line x1="590" y1="90" x2="590" y2="146" class="edge" marker-end="url(#arrow2)" />
+          <text x="608" y="122" class="edge-label">clean → continue</text>
+
+          <polyline points="710,45 900,45" class="danger-edge" marker-end="url(#arrow2-danger)" />
+          <text x="740" y="35" class="danger-edge-label">threat found</text>
+
+          <rect x="900" y="12" width="270" height="66" rx="10" class="danger-fill danger-stroke" />
+          <text x="1035" y="38" text-anchor="middle" class="danger-title" font-size="16">🛑 STOP — pipeline halts</text>
+          <text x="1035" y="58" text-anchor="middle" class="node-sub" font-size="10.5">every step below checks for this first</text>
+          <text x="1035" y="71" text-anchor="middle" class="node-sub" font-size="10.5">and skips its own work if set</text>
+
+          <rect x="10" y="150" width="1160" height="210" rx="12" class="container-box" />
+          <text x="30" y="175" class="container-label">2. ParallelAgent — ResearchPhase (all four run concurrently)</text>
+
+          <rect x="30" y="190" width="265" height="150" rx="10" class="node-fill node-stroke" />
+          <text x="162" y="216" text-anchor="middle" class="node-title" font-size="14">TravelAgent</text>
+          <text x="162" y="238" text-anchor="middle" font-size="10.5"><tspan class="sim-badge">○ SIM</tspan><tspan class="node-sub"> search_flights</tspan></text>
+          <text x="162" y="254" text-anchor="middle" font-size="10.5"><tspan class="sim-badge">○ SIM</tspan><tspan class="node-sub"> search_hotels</tspan></text>
+          <text x="162" y="270" text-anchor="middle" font-size="10.5"><tspan class="ok-badge">● REAL</tspan><tspan class="node-sub"> read_memory_bank</tspan></text>
+
+          <rect x="315" y="190" width="265" height="150" rx="10" class="node-fill node-stroke" />
+          <text x="447" y="216" text-anchor="middle" class="node-title" font-size="14">FamilyAgent</text>
+          <text x="447" y="238" text-anchor="middle" font-size="10.5"><tspan class="sim-badge">○ SIM</tspan><tspan class="node-sub"> search_activities</tspan></text>
+          <text x="447" y="254" text-anchor="middle" font-size="10.5"><tspan class="ok-badge">● REAL</tspan><tspan class="node-sub"> read/write_memory_bank</tspan></text>
+
+          <rect x="600" y="190" width="265" height="150" rx="10" class="node-fill node-stroke" />
+          <text x="732" y="216" text-anchor="middle" class="node-title" font-size="14">CalendarAgent</text>
+          <text x="732" y="238" text-anchor="middle" font-size="10.5"><tspan class="ok-badge">● REAL</tspan><tspan class="node-sub"> when connected</tspan></text>
+          <text x="732" y="254" text-anchor="middle" font-size="10.5"><tspan class="sim-badge">○ SIM</tspan><tspan class="node-sub"> fallback otherwise</tspan></text>
+          <text x="732" y="270" text-anchor="middle" class="node-sub" font-size="10">read-only — never writes holds</text>
+
+          <rect x="885" y="190" width="265" height="150" rx="10" class="node-fill node-stroke" />
+          <text x="1017" y="216" text-anchor="middle" class="node-title" font-size="14">ShoppingAgent</text>
+          <text x="1017" y="238" text-anchor="middle" font-size="10.5"><tspan class="sim-badge">○ SIM</tspan><tspan class="node-sub"> search_gear_and_supplies</tspan></text>
+
+          <line x1="590" y1="360" x2="590" y2="406" class="edge" marker-end="url(#arrow2)" />
+          <text x="608" y="388" class="edge-label">travel/family/calendar/shopping_results</text>
+
+          <rect x="470" y="410" width="240" height="70" rx="10" class="node-fill node-stroke" />
+          <text x="590" y="440" text-anchor="middle" class="node-title" font-size="17">3. FinanceAgent</text>
+          <text x="590" y="460" text-anchor="middle" font-size="10.5"><tspan class="ok-badge">● REAL</tspan><tspan class="node-sub"> check_budget_status, request_human_approval</tspan></text>
+
+          <line x1="590" y1="480" x2="590" y2="516" class="edge" marker-end="url(#arrow2)" />
+          <text x="608" y="502" class="edge-label">final_plan</text>
+
+          <rect x="470" y="520" width="240" height="70" rx="10" class="node-fill node-stroke" />
+          <text x="590" y="550" text-anchor="middle" class="node-title" font-size="17">4. PlanSynthesizer</text>
+          <text x="590" y="570" text-anchor="middle" class="node-sub" font-size="10.5">no tools — compiles session state into the final plan</text>
+        </svg>
+      </div>
+      <figcaption>Every tool shown here — real or simulated — is checked against that agent's permissions before it's allowed to run. If an agent tries to use something it's not permitted to, that's blocked automatically, not just discouraged. And if SecurityScanner finds a threat, none of the steps below it run at all.</figcaption>
+    </figure>
+    <div class="legend">
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--ok)"></span>Real: actually calls Gemini, the database, or your real calendar</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--sim)"></span>Simulated: realistic sample data, no real external call yet</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--danger)"></span>Stop condition: halts the entire run</div>
+    </div>
+  </section>
+
+  <footer class="page">
+    <span>Live: <span class="mono">life-grid-q5fdvprapa-uc.a.run.app</span></span>
+    <span>Repo: <span class="mono">github.com/vvishnoi/life-grid</span></span>
+    <span>Full detail: <span class="mono">docs/IMPLEMENTATION_PLAN.md</span></span>
+  </footer>
+</main>

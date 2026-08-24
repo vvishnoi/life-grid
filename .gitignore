@@ -1,0 +1,48 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies (npm workspaces can put a nested node_modules in any
+# workspace, not just the root, so this isn't anchored to /)
+node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js (apps/web/.next, not just a root-level one)
+.next/
+/out/
+
+# production
+/build
+
+# packages/agent build output
+/packages/*/dist
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+!.env*.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+client_secret_301592933372-i01ogv1t5r4stbbs1bis853hppt5j8vr.apps.googleusercontent.com.json
+package-lock.json

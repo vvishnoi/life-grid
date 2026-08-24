@@ -1,0 +1,539 @@
+# LifeGrid — Requirements, Design & Implementation
+
+**Audience:** any engineer or agent picking up this codebase cold. This is
+the source of truth, structured deliberately in three parts — **what was
+asked for, what was designed to satisfy it, and what actually got built**
+— so design intent and build status are never confused with each other.
+If a design decision and the current code disagree, the code is behind,
+not the doc; that gap is itself tracked in Part 3.
+
+**Target:** [All Things Agentic Hackathon](https://allthingsagentichackathon.devpost.com/)
+— **Fortified Enterprise Fleet** track (the project's own name comes
+directly from this track). Deadline: August 31, 2026, 5:00pm PDT.
+
+---
+---
+
+# PART 1 — REQUIREMENTS
+
+## 1.1 Problem statement
+
+The Fortified Enterprise Fleet track asks for "a scalable network of
+institutional agents that hook into official enterprise infrastructure."
+Concretely, that means: multiple specialized agents, coordinated by a
+runtime, discoverable through a registry, governed by identity and policy
+controls, inspected for security threats inline, and observable end to
+end — not a single chatbot with tools bolted on. LifeGrid instantiates
+this as a household/family-office assistant fleet (travel, family,
+calendar, shopping, finance agents) specifically *because* that domain
+naturally produces the things the track wants to see: multi-step
+autonomous research, real spend decisions that need human sign-off, and
+personalization that must persist across sessions.
+
+## 1.2 Functional requirements (derived from the track description)
+
+| ID | Requirement |
+|---|---|
+| FR-1 | A user submits one natural-language goal + a budget cap; the system autonomously decomposes it into sub-tasks across specialized agents. |
+| FR-2 | Every agent that could run is discoverable ahead of time, with a declared role, capabilities, and permission set (Agent Registry). |
+| FR-3 | Independent research tasks run concurrently, not serially, to bound latency. |
+| FR-4 | User input and any externally-sourced content is inspected for prompt injection / malicious payloads *before* an agent acts on it. |
+| FR-5 | Any action above a spend threshold, or any travel booking regardless of amount, must pause for explicit human approval before proceeding. |
+| FR-6 | Approved/rejected decisions must resume the *actual paused agent run*, not just be logged for show. |
+| FR-7 | Agents read and write a persistent memory of user preferences that influences behavior across the session (and, ideally, across sessions). |
+| FR-8 | Every step an agent takes is visible to the user in near-real-time (telemetry), not only as a final summary. |
+| FR-9 | The system must degrade gracefully to a zero-cost, zero-credential demo mode when live infrastructure isn't configured. |
+
+## 1.3 Non-functional requirements
+
+| ID | Requirement | Driven by |
+|---|---|---|
+| NFR-1 | **Zero-trust access control** — each agent's access to each resource domain is explicitly scoped, not ambient. | Track's "Agent Identity" pillar |
+| NFR-2 | **Unified policy enforcement** for spend/booking decisions, not scattered per-agent logic. | Track's "Agent Gateway" pillar |
+| NFR-3 | **Inline security guardrails** against prompt injection, tool poisoning, and PII leaks. | Track's "Model Armor" pillar |
+| NFR-4 | **OpenTelemetry-compliant** audit logs and end-to-end reasoning traces. | Track's "Agent Observability" pillar |
+| NFR-5 | **Persistent, secure cross-session memory.** | Track's "Memory Bank" pillar |
+| NFR-6 | **Long-running, asynchronous execution** — an agent run should not be bound to a single client HTTP connection's lifetime. | Track's "Agent Runtime" pillar |
+| NFR-7 | **Bounded, predictable cost per run** — Flash-tier models by default, scale-to-zero infra, hard instance caps. | Judging weight on architectural discipline + practical hackathon budget constraints |
+| NFR-8 | **Deterministic, auditable control flow** — the set of agents that can run, and the order security/approval gates fire in, must not be something an LLM can talk its way around. | Enterprise governance is the track's whole premise |
+
+## 1.4 Universal must-have technologies (every track, per official rules)
+
+| Requirement | Choice made |
+|---|---|
+| Gemini 3.5 or newer, via Gemini API or Vertex AI | Vertex AI (project-scoped, matches "enterprise" framing better than a personal API key) |
+| At least one Google Agent Framework | Google ADK (`@google/adk`) |
+| At least one Google Cloud infra service | Cloud Run |
+
+## 1.5 Submission deliverables (official checklist)
+
+Category selection · hosted project URL · text description (features/tech/data sources/learnings) · public or private repo (private → share with `testing@devpost.com` and `cloudhackathons@google.com`) · README.md spin-up instructions · architecture diagram · ~4-minute live demo video on Google Cloud (not localhost).
+
+## 1.6 Judging criteria (weighted)
+
+- **Innovation & Operational Utility — 40%**: how much real-world friction does the agent remove *on its own*.
+- **Architectural Discipline & Tech Stack — 30%**: decoupling, state/memory management, credential security, failure handling.
+- **Demo & Production Readiness — 30%**: live unedited demo, clean architecture diagram, reproducible setup, visible proof it runs on GCP.
+
+---
+---
+
+# PART 2 — SYSTEM DESIGN
+
+This part describes how the system is *designed* to satisfy Part 1 —
+architecture, data flow, contracts, and the reasoning behind each major
+decision — independent of how completely that design has been built out
+today. Build status lives entirely in Part 3.
+
+## 2.1 Design goals and constraints that shaped every decision below
+
+1. Security and approval gates must be **structurally** unskippable, not just instructed — a fixed control-flow graph, not a free-form agent that decides its own next step.
+2. Cost and latency must be bounded and predictable per run.
+3. The frontend must show live progress, not a spinner-then-dump.
+4. The design must degrade to something that runs with zero GCP credentials, because judges and future contributors will `git clone` before they configure anything.
+
+## 2.2 High-level architecture
+
+```mermaid
+flowchart TB
+    subgraph client["Browser (Next.js client)"]
+        UI["page.tsx\nTelemetryConsole / ApprovalCenterModal / MemoryBankView"]
+    end
+
+    subgraph api["Next.js API routes (Cloud Run)"]
+        ORCH["/api/orchestrate"]
+        APPR["/api/approvals"]
+        MEM["/api/memory"]
+        REG["/api/registry"]
+    end
+
+    subgraph adk["ADK runtime layer"]
+        RUNNER["Runner + InMemorySessionService"]
+        PIPE["lifeGridOrchestrator\n(SequentialAgent)"]
+    end
+
+    subgraph gw["Governance gateways"]
+        MA["Model Armor\n(prompt-injection scan)"]
+        PE["Policy Engine\n($100 threshold, travel-always-approve)"]
+        ZT["Zero-Trust Gateway\n(per-agent permission checks)"]
+    end
+
+    subgraph state["State"]
+        SESS["ADK session state\n(per-run working memory)"]
+        MB["Memory Bank\n(cross-session preferences)"]
+        REGISTRY["Agent Registry\n(static fleet directory)"]
+    end
+
+    subgraph gcp["Google Cloud"]
+        VERTEX["Vertex AI\n(Gemini)"]
+        TRACE["Cloud Trace\n(OTel exporter target)"]
+    end
+
+    UI <--SSE--> ORCH
+    UI <--SSE--> APPR
+    UI --> MEM
+    UI --> REG
+    ORCH --> RUNNER
+    APPR --> RUNNER
+    RUNNER --> PIPE
+    PIPE --> MA
+    PIPE --> PE
+    PIPE --> ZT
+    PIPE --> SESS
+    PIPE --> MB
+    REG --> REGISTRY
+    PIPE --> VERTEX
+    PIPE --> TRACE
+```
+
+(As of 2026-08-22 every connection above is actually wired — ZT and TRACE
+were the last two dotted-line gaps, closed in §3.1. Kept as a plain
+flowchart rather than pruning the dotted-line convention entirely, in case
+a future gap needs marking the same way.)
+
+## 2.3 Multi-agent orchestration design
+
+```mermaid
+flowchart TB
+    subgraph seq["SequentialAgent — lifeGridOrchestrator (root)"]
+        direction TB
+        SEC["1. SecurityScanner"]
+        subgraph par["2. ParallelAgent — researchPhase"]
+            direction LR
+            TRV["TravelAgent"]
+            FAM["FamilyAgent"]
+            CAL["CalendarAgent"]
+            SHP["ShoppingAgent"]
+        end
+        FIN["3. FinanceAgent"]
+        SYN["4. PlanSynthesizer"]
+        SEC --> par --> FIN --> SYN
+    end
+```
+
+**Decision: `SequentialAgent` at the root, not a dynamic/routed
+multi-agent pattern.**
+- *Alternative considered*: a router `LlmAgent` that decides at runtime
+  which specialist to hand off to (ADK supports agent-to-agent transfer).
+- *Rejected because*: the security gate must be **structurally**
+  unskippable (NFR-8). A model deciding its own control flow can in
+  principle be reasoned or prompt-injected into skipping it; a fixed
+  `subAgents` array cannot skip a step — it's not a decision the model
+  gets to make.
+- *Also*: real data dependencies are linear at the phase level —
+  `FinanceAgent` needs `travel_results`/`family_results`/`shopping_results`
+  populated; `PlanSynthesizer` needs `finance_results`. A `SequentialAgent`
+  models exactly that.
+- *Also*: bounded cost (NFR-7) and zero-trust permissions scoped to a
+  known roster (NFR-1) both require a **closed, fixed set** of agents
+  that can run — a dynamic transfer graph doesn't guarantee that.
+
+**Decision: `ParallelAgent` for the research phase.**
+- `TravelAgent`, `FamilyAgent`, `CalendarAgent`, `ShoppingAgent` are
+  mutually independent — none reads another's `outputKey`, each writes
+  to a distinct one. No correctness cost to running them concurrently,
+  and a direct latency win (four Flash calls in the time of one instead
+  of four).
+
+**Decision: no `LoopAgent`.**
+- No phase needs iterative refinement in v1 (e.g. "keep re-searching
+  until under budget"). Every phase runs exactly once. Flagged as a
+  plausible future addition (loop `ResearchPhase` + `FinanceAgent` if
+  over budget), not an oversight.
+
+## 2.4 Component design — the six Fortified Enterprise Fleet pillars
+
+Each of these is specified at the *design* level here; Part 3 states how
+much of each is actually built.
+
+**Agent Registry (Discovery & Lifecycle).** A single static, versioned
+directory (`AgentInfo[]`) is the source of truth for which agents exist,
+what they're allowed to touch, and their risk profile. Every other
+component (Zero-Trust, the UI's agent cards, telemetry attribution) reads
+from this one place — no agent identity should be invented ad hoc
+elsewhere.
+
+**Agent Runtime + Memory Bank (Core Execution & State).** Design intent:
+an agent invocation should be able to outlive a single client HTTP
+connection — a user should be able to close their browser mid-run and
+come back to see progress, and approvals should be resumable hours later.
+Memory Bank is designed as two distinct stores that must not be conflated:
+*session state* (per-run working memory — `travel_results`,
+`finance_results`, etc., scoped to one goal) versus the *Memory Bank
+proper* (cross-session preferences — "dislikes remote hotels," "daughter
+has nut allergy" — that must survive and inform runs weeks apart). The
+latter is the one the track means by "persistent, secure cross-session
+context over extended timelines."
+
+**Agent Identity (Security & Governance).** Every tool call an agent
+makes should be checked against that agent's declared permissions in the
+Registry *before* it executes — not just described in the Registry for
+show. Design: a `beforeToolCallback` (a real ADK extension point) that
+calls a zero-trust check per tool invocation, denying anything the
+calling agent's registry entry doesn't explicitly grant.
+
+**Agent Gateway (Security & Governance).** All policy-relevant decisions
+(spend thresholds, booking consent) should route through one evaluator
+with one set of rules, called from one place, so the rule can't drift
+between agents. Design: a single `PolicyEngine.evaluateAction()` call
+site is the only path by which any agent can trigger a human-approval
+requirement.
+
+**Model Armor (Security & Governance).** Three distinct guardrail
+categories are named by the track: *prompt injection* (malicious
+instructions embedded in user or external content), *tool poisoning*
+(a tool's returned data itself containing adversarial content that could
+manipulate the next agent turn), and *PII leaks* (sensitive data
+surfacing somewhere it shouldn't, e.g. in a log or a downstream API
+call). Design calls for inspection at two points: inbound (user goal
+text, before any agent sees it) and at tool-result boundaries (before a
+tool's output re-enters agent context).
+
+**Agent Observability (Telemetry).** Two audiences, two outputs from the
+same underlying event stream: a human-facing live console (the
+`TelemetryLog` SSE stream already described in §2.6/2.7), and a
+machine-facing OpenTelemetry trace per agent invocation, exported to
+Cloud Trace, so a reasoning chain can be reconstructed and audited after
+the fact without relying on the demo UI.
+
+## 2.5 Data model
+
+| Type | Purpose | Key fields |
+|---|---|---|
+| `AgentInfo` | Registry entry | `id, name, role, category, capabilities, permissions[], riskProfile` |
+| `TelemetryLog` | One observable event in the UI stream | `id, agentId, agentName, type, message, riskLevel?, threatDetected?, approvalItem?, metadata?` |
+| `ApprovalItem` | A pending or resolved human-approval request | `id, agentId, title, summary, actionType, amount, riskScore, riskLevel, status, batchId?` |
+| `MemoryItem` | One cross-session preference/fact | `id, category, key, value, sentiment, sourceAgent, updatedAt` |
+
+`TelemetryLog.type` is a closed union: `orchestration \| thought \|
+tool_call \| security_inspection \| approval_required \| memory_update \|
+execution_success \| security_alert \| error`. `ApprovalItem.batchId`
+groups approvals requested in the same model turn — see §2.7, they must
+be resolved together (a Gemini function-calling protocol constraint, not
+a design preference).
+
+ADK session state (distinct from `MemoryItem`, per §2.4) is a flat
+key-value map per run: `budgetCap` (seeded at session creation),
+`security_scan_result`, `travel_results`, `family_results`,
+`calendar_results`, `shopping_results`, `finance_results`, `final_plan`
+— one key per agent's `outputKey`.
+
+## 2.6 API contracts
+
+**`POST /api/orchestrate`**
+Request: `{ customPrompt: string, budgetCap: number, scenarioId?: string, mode: 'scripted' | 'live' }`
+- `scripted` → single JSON response, `{ success, steps: Step[] }` (canned, zero-cost).
+- `live` → `text/event-stream` response. Each frame is `data: {json}\n\n` where json is one of:
+  `{kind:'session', sessionId}` · `{kind:'log', log: TelemetryLog}` · `{kind:'done'}` · `{kind:'error', message}`.
+
+**`POST /api/approvals`**
+Request (live): `{ sessionId: string, decisions: [{functionCallId: string, action: 'approve'|'reject'}] }` — must include every decision from the same batch in one call.
+Request (scripted): `{ approvalId, action }` → plain JSON ack.
+Response (live): same SSE frame format as `/api/orchestrate`.
+
+**`GET /api/memory`** → `{ success, memories: MemoryItem[] }`. **`POST /api/memory`** → adds one `MemoryItem`.
+
+**`GET /api/registry`** → `{ success, totalAgents, agents: AgentInfo[] }`.
+
+Both live endpoints accept an optional `x-demo-key` header, checked
+against `DEMO_API_KEY` server-side when that env var is set (cost
+control — see Part 3).
+
+## 2.7 Sequence diagrams
+
+**Fresh live run:**
+
+```mermaid
+sequenceDiagram
+    participant U as Browser
+    participant O as /api/orchestrate
+    participant R as ADK Runner
+    participant P as lifeGridOrchestrator
+
+    U->>O: POST {prompt, budgetCap, mode:'live'}
+    O->>R: createSession(state:{budgetCap})
+    O->>R: runAsync(sessionId, newMessage)
+    R->>P: execute SequentialAgent
+    loop each ADK Event
+        P-->>R: yield Event
+        R-->>O: yield Event
+        O-->>U: SSE data: TelemetryLog
+    end
+    alt FinanceAgent needs approval
+        P-->>O: adk_request_confirmation event
+        Note over O: detected via actions.requestedToolConfirmations —<br/>stream stops pulling further events here
+        O-->>U: SSE data: approval_required (x N, one batchId)
+        O-->>U: SSE data: done
+    else no approval needed
+        P-->>O: PlanSynthesizer final response
+        O-->>U: SSE data: execution_success
+        O-->>U: SSE data: done
+    end
+```
+
+**Approval resume:**
+
+```mermaid
+sequenceDiagram
+    participant U as Browser
+    participant A as /api/approvals
+    participant R as ADK Runner
+    participant F as FinanceAgent (paused)
+
+    Note over U: user resolves every card in the batch
+    U->>A: POST {sessionId, decisions:[...]}
+    A->>R: runAsync(sessionId, functionResponse parts x N)
+    R->>F: resume exact paused turn (Security/Research NOT re-run)
+    F-->>R: continue turn, finish reply
+    R-->>A: yield Events
+    A-->>U: SSE data: TelemetryLog (execution_success on FinanceAgent's final reply)
+    A-->>U: SSE data: done
+```
+
+## 2.8 Key design decisions (decision log)
+
+| Decision | Alternative considered | Why this way |
+|---|---|---|
+| SSE streaming, not buffer-then-replay | Run the whole pipeline server-side, return one JSON blob | A multi-agent run can take 20–40+ real seconds; one long-held request risks platform timeouts and defeats the point of showing live telemetry. SSE is native to Next.js Route Handlers, no new dependency. |
+| Batch approvals by model-turn, not per-card | Resume immediately on each individual approve/reject click | Gemini's function-calling protocol requires every function call from one turn to get a response before the next turn — a partial resume is a hard API error, not a UX nicety. |
+| `InMemorySessionService`, not a persistent session store | `DatabaseSessionService` / Firestore-backed sessions | Sufficient for a single warm process (local dev, one steady Cloud Run instance); explicitly does not survive multi-instance scaling or instance recycling — see NFR-6 gap in Part 3. |
+| Scripted mode as the default, live mode opt-in | Default straight to live | A fresh `git clone && npm install && npm run dev` must work with zero GCP credentials configured (design goal #4). |
+| Vertex AI over a plain Gemini API key | `GEMINI_API_KEY` | Matches the "enterprise, project-scoped" framing of the track; auth via Application Default Credentials rather than a bearer secret in `.env`. |
+
+---
+---
+
+# PART 3 — IMPLEMENTATION
+
+Where the design in Part 2 stands today. Status is honest, not
+aspirational.
+
+## 3.1 Design-to-build status, per pillar (Part 2 §2.4)
+
+| Pillar | Design (§2.4) | Built? | Detail |
+|---|---|---|---|
+| Agent Registry | Single static directory, source of truth for identity/permissions | ✅ Done | `packages/agent/src/registry.ts`, `ENTERPRISE_AGENT_REGISTRY`, 7 agents, served via `GET /api/registry` |
+| Agent Runtime | Execution outlives a single HTTP connection | ⚠️ Partial | Real ADK `Runner`/`SequentialAgent`/`ParallelAgent` execution (`packages/agent/src/runner.ts`) — genuinely working, verified live, and now actually deployed to Cloud Run (`scripts/gcp-up.sh`), not just localhost. But still bound to one SSE HTTP request's lifetime; not backed by Cloud Tasks/Pub-Sub as designed. |
+| Memory Bank | Two distinct stores, cross-session one persistent | ✅ **Fixed 2026-08-22** | Session state unchanged (ADK, in-memory). The cross-session store is now dual-backend: `packages/agent/src/memory/in-memory.ts` (unchanged in-process array) for local dev, `packages/agent/src/memory/firestore.ts` (real `@google-cloud/firestore`, previously installed and unused) when actually deployed. Selected automatically by `packages/agent/src/memory/index.ts` on `K_SERVICE` — Cloud Run's own auto-injected env var, present only when actually deployed there, deliberately not reusing `GOOGLE_CLOUD_PROJECT`/live-mode since that's a separate axis (can be set locally too). Override via `MEMORY_BANK_BACKEND=memory\|firestore`. Verified live against the real Firestore database (seed → add → delete → re-read, correct counts each step) before ever touching Cloud Run. `scripts/gcp-up.sh` now provisions the Firestore API, a Native-mode database, and `roles/datastore.user` for the runtime SA. |
+| Agent Identity | `beforeToolCallback` zero-trust check on every tool call | ✅ **Fixed 2026-08-22** | `ZeroTrustGateway.validateAccess()` (`packages/agent/src/gateway/zero-trust.ts`) is now wired as a real ADK `beforeToolCallback` on every LlmAgent that has tools (`agents/*/agent.ts`), via `createZeroTrustCallback(agentId)` + a `TOOL_ACCESS_REQUIREMENTS` map from tool name to registry domain/access — fail-closed by default (an undeclared tool is denied, not silently allowed). Fixed a real registry gap this surfaced: `travel-agent` called `read_memory_bank` but had no `memory_bank` permission entry (it had an orphan `user_preferences` domain no tool ever checked) — renamed to `memory_bank: read` so real enforcement doesn't break existing verified behavior. A denial short-circuits the tool call (ADK returns the callback's Record instead of running it) and surfaces in telemetry as a `security_alert` (`event-mapper.ts`), not a generic tool result. Verified two ways: (1) direct unit-style calls against `createZeroTrustCallback` confirming both allow and deny paths, including fail-closed on an unknown tool name; (2) a real live Vertex AI run afterward — zero `zeroTrustDenied` responses, all 9 tools across every agent executed normally, pipeline completed to a real approval pause. |
+| Agent Gateway | One evaluator, one call site for all policy decisions | ✅ Mostly done | `PolicyEngine.evaluateAction()` (`packages/agent/src/gateway/policy-engine.ts`) is that single call site, wired into `requestApproval` in `tools.ts`, verified live. "Unified routing" beyond policy (i.e. all agent↔tool traffic passing through one gateway layer) isn't a distinct component — it's inline in the tool. |
+| Model Armor | Prompt injection + tool poisoning + PII leaks, at two boundaries | ⚠️ Partial | `ModelArmorGateway.inspectInput()` covers prompt injection only, via regex, at the inbound boundary — real and verified live against an actual injection payload. Tool poisoning and PII-leak detection: not implemented. |
+| Agent Observability | Human console + OTel traces to Cloud Trace | ✅ **Fixed 2026-08-19** | The `TelemetryLog` SSE console is real and verified live. OTel: `src/instrumentation.ts` now calls ADK's own `getGcpExporters({enableTracing:true})` + `maybeSetOtelProviders()` once at server startup (Next.js's official `instrumentation.ts`/`register()` hook), gated on `GOOGLE_CLOUD_PROJECT` being set so scripted-mode-only dev is unaffected. Verified live by pulling the actual trace back out of Cloud Trace: full span tree `POST /api/orchestrate` → `invocation` → `invoke_agent LifeGridOrchestrator` → `invoke_agent SecurityScanner` → ..., with proper OTel GenAI semantic-convention attributes (`gen_ai.agent.name`, `gen_ai.conversation.id`, `gen_ai.operation.name`). Two cosmetic, confirmed-harmless log lines you'll see at startup/request time — see the comment block in `instrumentation.ts` for why: a deprecation warning on the trace exporter package (archival after 2026-10-30, fine through this hackathon), and an "Attempted duplicate registration" error from a redundant call inside ADK's own `maybeSetOtelProviders()` (the first registration wins and traces export correctly regardless). |
+
+## 3.2 Universal must-haves — compliance
+
+| Requirement | Status |
+|---|---|
+| Gemini 3.5+ via Vertex AI | ✅ **Fixed 2026-08-19** — `packages/agent/src/model.ts` now uses `gemini-3.5-flash-lite`, confirmed live via a direct API probe and a full end-to-end app run. Requires `GOOGLE_CLOUD_LOCATION=global` — this model 404s on regional endpoints like `us-central1` in this project; the Cloud Run service's own deploy region is unaffected, it's an independent setting (`cloudbuild.yaml`). |
+| Google Agent Framework | ✅ `@google/adk@1.6.0` |
+| Google Cloud infra | ✅ Cloud Run (`cloudbuild.yaml`), not yet actually deployed — see §3.6 |
+
+## 3.3 Real vs. simulated (be precise about this in the demo video)
+
+**Genuinely real, verified with live Vertex AI calls:** security scanning
+against a real injection payload; memory-bank reads/writes influencing
+agent behavior; `PolicyEngine` correctly flagging >$100 spends and
+travel bookings; the full parallel research phase running concurrently
+(confirmed via near-identical timestamps in traced calls); the complete
+approval pause → batched resume → completion cycle; graceful failure
+with a clean SSE error frame when credentials are missing.
+
+**Intentionally simulated:** `search_flights`, `search_hotels`,
+`search_activities`, `search_gear_and_supplies` in `tools.ts` return
+realistic generated data, not real external API calls — each response
+includes a `note` field saying so. Swapping any one for a real API is a
+bounded, isolated change (one `FunctionTool` per data source) but wasn't
+in scope for what's been verified.
+
+**`check_calendar_availability` is the one exception — real when
+connected (2026-08-22):** "Connect Google Calendar" in the Navbar signs
+the user in via Auth.js (`apps/web/src/auth.ts`) requesting the
+`calendar.readonly` scope only — deliberately read-only, no scope to write
+events, so a live demo can never modify a stranger's real calendar.
+`/api/orchestrate` passes the resulting access token into ADK session
+state (`googleCalendarAccessToken`); the tool
+(`packages/agent/src/tools.ts`) reads it via `tool_context.state` and
+calls the real Google Calendar API (`googleapis`) for actual free/busy
+data when present, and falls back to the original simulated response
+(unchanged) — including on any real API error, so an expired token or API
+hiccup degrades gracefully instead of failing the agent turn — when not.
+`CalendarAgent`'s instructions and the Agent Registry's description of it
+were both corrected to stop claiming it "creates hold reservations" — that
+was never true even in the simulated version's actual tool output
+(`tentativeHoldsPlaced` was just a fixed `true` no code ever acted on) and
+is certainly not true of the real integration.
+
+Verified: the OAuth redirect itself, end-to-end up to Google's real
+consent screen — correct client ID, redirect URI, and scopes, PKCE
+challenge included — by driving Auth.js's `/api/auth/csrf` +
+`/api/auth/signin/google` endpoints directly and inspecting the resulting
+`Location` header. Completing the actual consent click requires a human in
+a real browser, so that last step is manual-test-only, not automated here.
+
+## 3.4 Verified by actually running the system (not just review)
+
+1. **Security**: live injection-test preset correctly detected and handled by `securityScannerAgent`.
+2. **Found & fixed — `SequentialAgent` doesn't stop on a nested pause.** First live approval-triggering run hung past a 90s timeout because `PlanSynthesizer` kept getting invoked after `FinanceAgent` paused. Root-caused in `sequential_agent.js` (no `endInvocation` check between sub-agents); fixed on the consumer side in `stream-response.ts` by breaking the event loop when `event.actions.requestedToolConfirmations` is populated.
+3. **Found & fixed — premature break.** First fix attempt broke on `event.longRunningToolIds` instead, which is also set on the *initial* tool-call-request event before the tool even runs — silently swallowed all pending approvals. Corrected to check `actions.requestedToolConfirmations` specifically.
+4. **Found & fixed — batch approval protocol error.** Resolving one of several simultaneous `request_human_approval` calls in isolation produced a hard Gemini API error ("number of function response parts..."). Fixed via `ApprovalItem.batchId` + client-side batching in `page.tsx`.
+5. **Full happy path confirmed**: fresh live run → real flight/hotel search → multiple simultaneous approvals → full-batch resume → `execution_success` completion, inspected at the raw SSE frame level.
+6. **Known, accepted limitation**: after a resumed approval, ADK 1.6.0's resumability re-enters `FinanceAgent` directly but does not hand control back to the outer `SequentialAgent` to run `PlanSynthesizer` — verified live (resume produces only `FinanceAgent` events, then stream ends). Mitigated by treating `FinanceAgent`'s own final reply as the success signal on resumed runs (`event-mapper.ts`, `isResume` flag), but the polished final itinerary from `PlanSynthesizer` is never shown after an approval. Not fixed further to avoid burning additional paid Vertex AI test cycles chasing an unverified fix mid-session.
+7. **Model upgrade verified live (2026-08-19)**: `gemini-2.5-flash` → `gemini-3.5-flash-lite` for hackathon compliance. Direct API probes against `us-central1` returned 404 for every `gemini-3.x` model tried; the `global` Vertex AI location resolved `gemini-3.5-flash` and `gemini-3.5-flash-lite` successfully. Confirmed the app itself works end-to-end against the new model+location combo, not just the raw API.
+8. **OTel → Cloud Trace verified live (2026-08-19)**: enabled the Cloud Trace API, wired `src/instrumentation.ts`, and confirmed by directly querying the Cloud Trace API afterward — pulled back a real trace with the full span hierarchy and OTel GenAI semantic-convention attributes. Note the read API (`GET .../traces`) has noticeable ingestion lag (a query immediately after the run came back empty; the same query a short while later returned the trace) — don't take an immediately-empty query as a failure signal.
+9. **Real Cloud Run deploy, verified live (2026-08-19)**: `scripts/gcp-up.sh` builds, pushes to Artifact Registry, and deploys — found and fixed three real bugs surfaced only by actually running it: (a) `next.config.ts` was missing `output: 'standalone'`, so the Dockerfile's `.next/standalone` COPY step would have failed; (b) Cloud Build substitution defaults can't reference other custom substitutions or built-ins like `$PROJECT_ID` reliably — had to inline values instead of an `_IMAGE` indirection; (c) `$COMMIT_SHA` is only populated when Cloud Build is triggered from an actual git commit, not for `gcloud builds submit` from local source — switched to `$BUILD_ID`. Also found this project's Cloud Build runs as the default *compute* SA, not the legacy Cloud Build SA IAM guides usually assume — the script now grants both, since which one applies is a per-project setting. Post-deploy, verified all four cases against the live URL: homepage 200, scripted mode works (free), live mode correctly 401s without the `x-demo-key` header, and 200s with it.
+10. **Monorepo restructure redeploy, two real bugs found (2026-08-21)**: after splitting into `packages/agent` + `apps/web` (§3.6), the first `gcloud builds submit` failed — the Dockerfile's `deps` stage only copies `package.json` files (for layer caching), but the new root `postinstall` unconditionally tried to build `packages/agent` there, before its `tsconfig.json`/`src` existed. Fixed by guarding `postinstall` on the file's presence. Second attempt failed too: the Dockerfile defensively `COPY --from=deps`'d `packages/agent/node_modules` and `apps/web/node_modules`, but npm workspaces fully hoists here — those directories never exist. Both fixes verified against an exact local simulation of the Docker `deps` stage before re-running the real (paid) Cloud Build. Third attempt succeeded; verified live against the redeployed URL: homepage 200, `/api/registry` 200, a scripted orchestrate run 200, and live mode still 401s without `x-demo-key` (confirming the redeploy correctly reused the existing key rather than silently clearing it — `cloudbuild.yaml`'s `--set-env-vars` replaces the full env var set on every deploy).
+11. **Zero-Trust `beforeToolCallback` wiring, verified live (2026-08-22)**: added `createZeroTrustCallback(agentId)` (`packages/agent/src/gateway/zero-trust.ts`) as a real ADK `beforeToolCallback` on every tool-bearing agent. Verified two ways before calling it done: direct calls against the callback confirming both the allow and (several) deny paths, including fail-closed denial of an undeclared tool name; then one real live Vertex AI run, checked for zero `zeroTrustDenied` responses and confirmed all 9 real tools across every agent still executed normally end-to-end through to a real approval pause — proving the wiring integrates with ADK's actual Runner/SequentialAgent event loop, not just correct in isolation. Also surfaced and fixed a real registry gap: `travel-agent` called `read_memory_bank` but had no matching `memory_bank` permission (only an orphan `user_preferences` domain no tool ever checked) — under real enforcement this would have silently broken travel-agent's memory-bank reads.
+12. **Memory Bank dual-backend, verified live (2026-08-22)**: `packages/agent/src/memory/firestore.ts` now a real `@google-cloud/firestore` client (previously installed, unused, despite the filename). Enabled the Firestore API and created a Native-mode database in the project, then verified the real client directly — seed (4 items) → add → delete → re-read, correct counts at every step — against the actual Firestore database, before ever touching Cloud Run. Also verified the `K_SERVICE`-based backend selection (`memory/index.ts`) picks in-memory with no `K_SERVICE` set, Firestore with it set, and the `MEMORY_BANK_BACKEND` override wins either direction. Found one more real issue this way, not just theorized: `@google-cloud/firestore@9` declares `"engines": {"node": ">=22"}` — harmless as an npm warning during local dev (Node 26), but the Dockerfile was still on `node:20-alpine`, an unnecessary gamble now that this dependency is actually invoked at runtime instead of sitting unused. Bumped to `node:22-alpine`.
+
+## 3.5 Cost
+
+Full detail in **`docs/COST_OPTIMIZATION.md`**. Summary: Flash-only
+models, scale-to-zero + capped Cloud Run instances, an optional
+`DEMO_API_KEY` gate on the paid live endpoints, and manual steps (billing
+alerts, teardown after the demo) documented but not automated —
+deliberately, since billing/deletion actions shouldn't run unattended.
+Every live-mode test in §3.4 was a real, deliberately sparing paid call.
+
+## 3.6 File map
+
+**Restructured 2026-08-19 into an npm workspaces monorepo** so the agent
+pipeline ships independently of this Next.js UI — see
+[packages/agent/README.md](../packages/agent/README.md) for how to drive it
+from a different frontend entirely. `apps/web` now depends on
+`@lifegrid/agent` like any npm package (via its compiled `dist/`, not its
+TS source), so a production build/Docker image must build `packages/agent`
+first — `npm run build` (root) does this in order. Each agent's system
+prompt lives in its own `instructions.md` next to its `agent.ts`, not
+inline in code.
+
+```
+packages/agent/                  — @lifegrid/agent: zero Next.js dependency
+  src/agents/<name>/{instructions.md, agent.ts} — one folder per LlmAgent
+  src/agents/index.ts             — Sequential/ParallelAgent composition (Part 2 §2.3)
+  src/tools.ts                    — FunctionTool/LongRunningFunctionTool defs, wired to gateways
+  src/runner.ts                   — Runner + InMemorySessionService singleton
+  src/event-mapper.ts             — raw ADK Event -> TelemetryLog/ApprovalItem (Part 2 §2.5)
+  src/stream-response.ts          — SSE builder; the pause-detection fix lives here
+  src/approvals.ts                — builds the ADK resume message for a batch of decisions
+  src/gateway/
+    model-armor.ts                — prompt-injection regex scanner (real, partial — §3.1)
+    policy-engine.ts              — $100 threshold + travel-always-approve (real)
+    zero-trust.ts                 — permission-check logic + createZeroTrustCallback(),
+                                     wired as a real beforeToolCallback on every
+                                     tool-bearing agent (§3.1)
+  src/memory/
+    types.ts                      — the MemoryBank interface both backends implement
+    seed-data.ts                  — demo memories shared by both backends
+    in-memory.ts                  — local-dev default, resets on restart
+    firestore.ts                  — real @google-cloud/firestore client, used when deployed
+    index.ts                      — picks a backend by K_SERVICE (Cloud Run's own env
+                                     var) / MEMORY_BANK_BACKEND override (§3.1)
+  src/registry.ts                 — ENTERPRISE_AGENT_REGISTRY (Agent Registry pillar)
+  src/scripted-demo.ts            — OLD scripted/fake-delay demo path (renamed from
+                                     orchestrator.ts — its old class name collided
+                                     conceptually with the real ADK orchestrator),
+                                     kept as the zero-cost default fallback (mode: 'scripted')
+  src/index.ts                    — full server-side public API (imports @google/adk)
+  src/client.ts                   — client-bundle-safe subset: types + registry only,
+                                     no ADK/gRPC/OTel — import this from React components
+apps/web/                        — @lifegrid/web: the Next.js UI
+  src/instrumentation.ts          — Next.js startup hook, wires ADK's OTel spans to Cloud Trace
+  src/auth.ts                     — Auth.js config: Google sign-in, calendar.readonly scope only
+  src/app/api/auth/[...nextauth]/route.ts — Auth.js's own route handlers
+  src/app/api/orchestrate/route.ts — mode branch: scripted (old JSON) vs live (SSE); live
+                                      mode also passes the signed-in user's Calendar access
+                                      token into ADK session state, if present (§3.3)
+  src/app/api/approvals/route.ts   — mode branch: scripted stub vs live batch-resume
+  src/app/page.tsx                 — frontend orchestration, batch-approval tracking
+  src/lib/adk-client.ts            — SSE frame parser used by the frontend
+  next.config.ts                   — outputFileTracingRoot/-Includes for the monorepo;
+                                      the latter exists because Turbopack's tracer can't
+                                      see instructions.md's runtime fs.readFileSync — see
+                                      that file's comment, confirmed live via a standalone
+                                      server smoke test (ENOENT without it)
+scripts/gcp-up.sh                — creates all GCP infra (APIs, Artifact Registry
+                                    repo, least-privilege runtime SA, IAM bindings)
+                                    and deploys via cloudbuild.yaml; idempotent
+scripts/gcp-down.sh              — tears it back down; --full also disables APIs
+                                    and deletes the runtime SA for a clean slate
+```
+
+Currently deployed at `https://life-grid-q5fdvprapa-uc.a.run.app` (may change
+if the service is ever deleted and recreated rather than just redeployed —
+re-run `gcloud run services describe life-grid --region=us-central1
+--format="value(status.url)"` to confirm the current one before recording
+the demo video). Redeployed post-restructure on 2026-08-21 (§3.4 point 10)
+and again on 2026-08-22 with the Zero-Trust + Memory Bank changes (§3.4
+points 11–12).
+
+## 3.7 Priority fix list before submitting
+
+Ordered by what blocks eligibility/judging, not by difficulty:
+
+1. ~~**Bump the model to Gemini 3.5+**~~ — ✅ done 2026-08-19, see §3.2.
+2. ~~**Wire ADK's own OTel exporter to Cloud Trace**~~ — ✅ done 2026-08-19, see §3.1 (`src/instrumentation.ts`).
+3. ~~**Deploy to Cloud Run for real**~~ — ✅ done 2026-08-19 via `scripts/gcp-up.sh`, see §3.1/§3.4. Record the demo video against the live URL, not localhost, still outstanding.
+4. ~~**Wire `ZeroTrustGateway.validateAccess()` into tool execution**~~ — ✅ done 2026-08-22, see §3.1.
+5. ~~**Decide Memory Bank persistence**~~ — ✅ done 2026-08-22: real Firestore when deployed, in-memory locally, see §3.1.
+6. ~~Write the README spin-up section; adapt Part 2 §2.2's diagram for the submission's architecture-diagram deliverable.~~ — ✅ done 2026-08-22: README spin-up section updated for the monorepo; `docs/submission/` has the architecture diagram (`architecture-diagram.html`, two figures — system + pipeline, real/simulated marked per tool), a full Devpost text draft (`DEVPOST_DESCRIPTION.md`), and a timed demo-video shot list (`DEMO_SCRIPT.md`). Still outstanding: actually recording the video, and fixing the Calendar OAuth test-user list (§3.3) before it's in the recording.
+7. Only after 1–6: the `PlanSynthesizer`-after-resume gap (§3.4 point 6) and real external API integrations (§3.3) as stretch goals.

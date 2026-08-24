@@ -1,0 +1,19 @@
+{
+  "name": "life-grid",
+  "private": true,
+  "version": "0.1.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "postinstall": "if [ -f packages/agent/tsconfig.json ]; then npm run build -w packages/agent; fi",
+    "dev": "npm run dev -w apps/web",
+    "build": "npm run build -w packages/agent && npm run build -w apps/web",
+    "start": "npm run start -w apps/web",
+    "lint": "npm run lint -w apps/web"
+  }
+}

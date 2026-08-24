@@ -1,0 +1,37 @@
+{
+  "name": "@lifegrid/agent",
+  "version": "0.1.0",
+  "description": "LifeGrid's multi-agent Google ADK pipeline (security scanning, parallel research, budget/approval gating, memory) — usable standalone from any Node app, independent of the LifeGrid Next.js UI.",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "default": "./dist/client.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/copy-md.mjs",
+    "dev": "tsc -p tsconfig.json --watch"
+  },
+  "dependencies": {
+    "@google-cloud/firestore": "^9.0.0",
+    "@google/adk": "^1.6.0",
+    "@google/genai": "^2.17.0",
+    "googleapis": "^176.0.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}
