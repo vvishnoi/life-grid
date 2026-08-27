@@ -46,3 +46,10 @@ yarn-error.log*
 next-env.d.ts
 client_secret_301592933372-i01ogv1t5r4stbbs1bis853hppt5j8vr.apps.googleusercontent.com.json
 package-lock.json
+node_modules
+
+# Personal submission materials — recording notes, Devpost drafts. Real,
+# useful locally, but not part of the open-source project itself.
+docs/submission/VIDEO_SCRIPT.md
+docs/submission/DEVPOST_DESCRIPTION.md
+docs/submission/README.md

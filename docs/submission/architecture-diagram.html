@@ -1,542 +1,581 @@
-<title>LifeGrid Architecture</title>
+<title>LifeGrid — Presentation</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
 <style>
   :root {
-    --bg: #F6F7FB;
+    --bg: #FAFAF8;
     --surface: #FFFFFF;
-    --surface-2: #EEF0F7;
-    --ink: #12172A;
-    --muted: #5B6478;
-    --border: #D8DCE8;
-    --accent: #5850EC;
-    --accent-soft: #ECEBFE;
-    --gov: #0E7C86;
-    --gov-soft: #E3F4F5;
-    --ok: #0E8F5E;
-    --ok-soft: #E3F6EC;
-    --sim: #8A8FA0;
-    --sim-soft: #EEEFF4;
+    --surface-2: #F3F2EE;
+    --ink: #1C1B19;
+    --muted: #6B6A66;
+    --border: #E4E2DD;
+    --accent: #6D28D9;
+    --accent-ink: #FFFFFF;
+    --accent-soft: #EEE9FC;
     --danger: #C41E3A;
     --danger-soft: #FBE7EA;
-    --shadow: 0 1px 2px rgba(18,23,42,0.04), 0 8px 24px rgba(18,23,42,0.06);
+    --success: #15803D;
+    --success-soft: #DCFCE7;
+    --shadow: 0 1px 2px rgba(18,23,42,0.04), 0 12px 32px rgba(18,23,42,0.07);
   }
 
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #0A0E1B;
-      --surface: #121729;
-      --surface-2: #1A2038;
-      --ink: #E8EAF5;
-      --muted: #939CB5;
-      --border: #262E4B;
-      --accent: #8B85FF;
-      --accent-soft: #211F45;
-      --gov: #4FD7DE;
-      --gov-soft: #14313A;
-      --ok: #3DDC91;
-      --ok-soft: #133328;
-      --sim: #7B8299;
-      --sim-soft: #1A2038;
+      --bg: #0C0B10;
+      --surface: #18161F;
+      --surface-2: #242030;
+      --ink: #F5F3F8;
+      --muted: #A79FB3;
+      --border: #34303F;
+      --accent: #A78BFA;
+      --accent-ink: #1B1330;
+      --accent-soft: #2C2140;
       --danger: #FF6B7A;
       --danger-soft: #3A1620;
-      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+      --success: #4ADE80;
+      --success-soft: #142A1C;
+      --shadow: 0 1px 2px rgba(0,0,0,0.35), 0 12px 32px rgba(0,0,0,0.4);
     }
   }
 
   :root[data-theme="dark"] {
-    --bg: #0A0E1B;
-    --surface: #121729;
-    --surface-2: #1A2038;
-    --ink: #E8EAF5;
-    --muted: #939CB5;
-    --border: #262E4B;
-    --accent: #8B85FF;
-    --accent-soft: #211F45;
-    --gov: #4FD7DE;
-    --gov-soft: #14313A;
-    --ok: #3DDC91;
-    --ok-soft: #133328;
-    --sim: #7B8299;
-    --sim-soft: #1A2038;
+    --bg: #0C0B10;
+    --surface: #18161F;
+    --surface-2: #242030;
+    --ink: #F5F3F8;
+    --muted: #A79FB3;
+    --border: #34303F;
+    --accent: #A78BFA;
+    --accent-ink: #1B1330;
+    --accent-soft: #2C2140;
     --danger: #FF6B7A;
     --danger-soft: #3A1620;
-    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+    --success: #4ADE80;
+    --success-soft: #142A1C;
+    --shadow: 0 1px 2px rgba(0,0,0,0.35), 0 12px 32px rgba(0,0,0,0.4);
   }
 
   * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
 
   body {
     background: var(--bg);
     color: var(--ink);
     font-family: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
     line-height: 1.5;
-    margin: 0;
-    padding: 48px 24px 80px;
+    overflow: hidden;
   }
 
   .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
 
-  main {
-    max-width: 1180px;
-    margin: 0 auto;
+  h1, h2, .display {
+    font-family: "Sora", "IBM Plex Sans", sans-serif;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+    margin: 0;
   }
 
-  header.page {
-    margin-bottom: 40px;
+  /* ---------------- deck mechanics ---------------- */
+  .deck {
+    height: 100vh;
+    overflow-y: scroll;
+    scroll-snap-type: y mandatory;
+    scroll-behavior: smooth;
+  }
+
+  .slide {
+    height: 100vh;
+    width: 100%;
+    scroll-snap-align: start;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 6vh 9vw;
+    position: relative;
   }
 
   .eyebrow {
     font-family: "IBM Plex Mono", monospace;
-    font-size: 12px;
+    font-size: clamp(11px, 1vw, 13px);
     font-weight: 500;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--accent);
-    margin: 0 0 10px;
+    margin: 0 0 14px;
   }
 
-  h1 {
-    font-size: clamp(32px, 5vw, 44px);
+  .slide h2.display {
+    font-size: clamp(26px, 3.4vw, 44px);
     font-weight: 700;
-    letter-spacing: -0.01em;
-    margin: 0 0 12px;
-    text-wrap: balance;
+    margin-bottom: 10px;
   }
 
-  .lede {
-    font-size: 17px;
+  .slide .lede {
+    font-size: clamp(15px, 1.3vw, 19px);
     color: var(--muted);
-    max-width: 68ch;
-    margin: 0 0 22px;
+    max-width: 62ch;
+    margin: 0 0 34px;
   }
 
-  .facts {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-  }
-
-  .fact {
+  .slide-num {
+    position: fixed;
+    right: 28px;
+    bottom: 24px;
     font-family: "IBM Plex Mono", monospace;
     font-size: 12.5px;
-    padding: 6px 12px;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 5px 11px;
+    border-radius: 999px;
+    box-shadow: var(--shadow);
+    z-index: 20;
+  }
+
+  .dots {
+    position: fixed;
+    right: 24px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    z-index: 20;
+  }
+
+  .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--border);
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s;
+    border: none; padding: 0;
+  }
+  .dot.active { background: var(--accent); transform: scale(1.4); }
+
+  .hint {
+    position: fixed;
+    left: 28px;
+    bottom: 24px;
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    z-index: 20;
+  }
+  .key {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: 5px;
+    padding: 2px 6px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .deck { scroll-behavior: auto; }
+  }
+
+  /* ---------------- shared bits ---------------- */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    padding: 6px 13px;
     border-radius: 999px;
     background: var(--surface-2);
     border: 1px solid var(--border);
     color: var(--ink);
   }
 
-  section.card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 28px 28px 22px;
+  .avatar {
+    width: 84px; height: 84px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Sora", sans-serif;
+    font-weight: 700;
+    font-size: 26px;
+    color: var(--accent-ink);
+    background: linear-gradient(135deg, var(--accent), #EC4899);
+    flex-shrink: 0;
     box-shadow: var(--shadow);
-    margin-bottom: 28px;
   }
 
-  h2 {
-    font-size: 21px;
-    font-weight: 600;
-    margin: 0 0 4px;
+  .mark-badge {
+    width: 30px; height: 30px; border-radius: 9px;
+    background: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
   }
+  .mark-badge svg { width: 16px; height: 16px; }
 
-  .section-sub {
-    color: var(--muted);
-    font-size: 14.5px;
-    margin: 0 0 20px;
-  }
-
-  figure {
-    margin: 0;
-  }
-
-  .explainer {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 22px 28px;
-  }
-
-  .explainer-item h3 {
-    font-size: 15px;
-    font-weight: 600;
-    margin: 0 0 8px;
-    color: var(--accent);
-  }
-
-  .explainer-item p {
-    margin: 0;
-    font-size: 14.5px;
-    color: var(--ink);
-    line-height: 1.6;
-  }
-
-  .explainer-item strong {
-    color: var(--ink);
-    font-weight: 600;
-  }
-
-  .svg-wrap {
-    overflow-x: auto;
-  }
-
+  figure { margin: 0; }
+  .svg-wrap { width: 100%; }
   svg { display: block; width: 100%; height: auto; }
+  figcaption { margin-top: 14px; font-size: 13.5px; color: var(--muted); max-width: 78ch; }
 
-  figcaption {
-    margin-top: 16px;
-    font-size: 13.5px;
-    color: var(--muted);
-    max-width: 78ch;
-  }
-
-  /* --- diagram node styling (applies to rect/text drawn with these classes) --- */
   .node-fill { fill: var(--surface-2); }
   .node-stroke { stroke: var(--border); stroke-width: 1.5; }
   .node-title { fill: var(--ink); font-family: "IBM Plex Sans", sans-serif; font-weight: 600; }
   .node-sub { fill: var(--muted); font-family: "IBM Plex Mono", monospace; }
-  .gov-fill { fill: var(--gov-soft); }
-  .gov-stroke { stroke: var(--gov); stroke-width: 1.5; }
-  .gov-title { fill: var(--gov); font-family: "IBM Plex Sans", sans-serif; font-weight: 600; }
   .accent-fill { fill: var(--accent-soft); }
-  .accent-stroke { stroke: var(--accent); stroke-width: 1.5; }
-  .accent-title { fill: var(--accent); font-family: "IBM Plex Sans", sans-serif; font-weight: 600; }
-  .edge { stroke: var(--muted); stroke-width: 1.6; fill: none; }
-  .edge-label { fill: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 12px; }
+  .accent-stroke { stroke: var(--accent); stroke-width: 1.8; }
+  .accent-title { fill: var(--accent); font-family: "IBM Plex Sans", sans-serif; font-weight: 700; }
   .danger-fill { fill: var(--danger-soft); }
-  .danger-stroke { stroke: var(--danger); stroke-width: 1.5; }
+  .danger-stroke { stroke: var(--danger); stroke-width: 1.8; }
   .danger-title { fill: var(--danger); font-family: "IBM Plex Sans", sans-serif; font-weight: 700; }
-  .danger-edge { stroke: var(--danger); stroke-width: 1.8; fill: none; }
-  .danger-edge-label { fill: var(--danger); font-family: "IBM Plex Mono", monospace; font-size: 12px; font-weight: 600; }
+  .edge { stroke: var(--muted); stroke-width: 1.8; fill: none; }
+  .edge-label { fill: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 12.5px; }
+  .danger-edge { stroke: var(--danger); stroke-width: 2; fill: none; }
+  .danger-edge-label { fill: var(--danger); font-family: "IBM Plex Mono", monospace; font-size: 12.5px; font-weight: 600; }
   .container-box { fill: none; stroke: var(--border); stroke-width: 1.5; stroke-dasharray: 5 5; }
-  .container-label { fill: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; }
-  .ok-badge { fill: var(--ok); font-family: "IBM Plex Mono", monospace; font-weight: 600; }
-  .sim-badge { fill: var(--sim); font-family: "IBM Plex Mono", monospace; font-weight: 600; }
+  .container-label { fill: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 12.5px; letter-spacing: 0.04em; text-transform: uppercase; }
 
-  /* --- pillar strip --- */
-  .pillars {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 12px;
-  }
-
-  .pillar {
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 14px 16px;
-    background: var(--surface-2);
-  }
-
-  .pillar-head {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 6px;
-  }
-
-  .dot {
-    width: 9px; height: 9px; border-radius: 50%;
-    flex: none;
-  }
-  .dot.done { background: var(--ok); }
-  .dot.partial { background: #C9A227; }
-
-  .pillar-name {
-    font-weight: 600;
-    font-size: 14px;
-  }
-
-  .pillar-note {
-    font-size: 12.5px;
-    color: var(--muted);
-    line-height: 1.45;
-  }
-
-  .legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 18px;
-    margin-top: 18px;
-    font-size: 13px;
-    color: var(--muted);
-    align-items: center;
-  }
-
-  .legend-item { display: flex; align-items: center; gap: 7px; }
-  .legend-swatch { width: 14px; height: 14px; border-radius: 4px; flex: none; }
-
-  footer.page {
-    margin-top: 44px;
-    padding-top: 22px;
-    border-top: 1px solid var(--border);
-    color: var(--muted);
-    font-size: 13px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px 24px;
-  }
-
-  footer.page .mono { color: var(--ink); }
+  a.link { color: var(--accent); text-decoration: none; border-bottom: 1.5px solid var(--accent-soft); }
+  a.link:hover { border-bottom-color: var(--accent); }
 </style>
 
-<main>
-  <header class="page">
-    <p class="eyebrow">Fortified Enterprise Fleet — Hackathon Architecture</p>
-    <h1>LifeGrid</h1>
-    <p class="lede">LifeGrid plans household stuff — like a family trip — by splitting the work across several small AI agents instead of one AI trying to do everything itself.</p>
-    <div class="facts">
-      <span class="fact">Gemini 3.5 Flash-Lite / Flash via Vertex AI</span>
-      <span class="fact">Google ADK — SequentialAgent + ParallelAgent</span>
-      <span class="fact">Cloud Run</span>
-      <span class="fact">Firestore Memory Bank</span>
-      <span class="fact">OAuth-gated real Google Calendar</span>
-      <span class="fact">Model choice in Settings — Lite / Standard / Auto</span>
-    </div>
-  </header>
+<div class="deck" id="deck">
 
-  <section class="card">
-    <h2>How it works, in plain terms</h2>
-    <div class="explainer">
-      <div class="explainer-item">
-        <h3>The pattern, and why</h3>
-        <p>Instead of one AI model freely deciding what to do next, we wrote the steps as a fixed sequence: check for anything unsafe first, then do four pieces of research at once, then check the budget, then write up the plan. Each step is a separate, smaller AI call. We fixed the order on purpose — if the AI were choosing its own next step, a cleverly worded request could talk it into skipping the safety check. A fixed sequence can't be talked out of a step that isn't there to skip. And if the safety check <em>does</em> find something, the whole run stops right there — every later step checks for that before doing any work, so a blocked threat actually halts the pipeline instead of just being logged while everything else runs anyway.</p>
+  <!-- ============ 1. TITLE ============ -->
+  <section class="slide" style="align-items:center; text-align:center;">
+    <div class="mark-badge" style="width:56px;height:56px;border-radius:16px;margin:0 auto 28px;">
+      <svg viewBox="0 0 100 100" style="width:30px;height:30px;">
+        <circle cx="20" cy="20" r="6" fill="var(--accent-ink)"/>
+        <circle cx="50" cy="20" r="6" fill="var(--accent-ink)"/>
+        <circle cx="80" cy="20" r="6" fill="var(--accent-ink)"/>
+        <circle cx="20" cy="80" r="6" fill="var(--accent-ink)"/>
+        <circle cx="50" cy="80" r="6" fill="var(--accent-ink)"/>
+        <circle cx="80" cy="60" r="6" fill="var(--accent-ink)"/>
+        <path d="M20,20 L20,80 L50,80 M80,20 L40,20 L40,60 L80,60 L80,45 L60,45" stroke="var(--accent-ink)" stroke-width="6" fill="none" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <h1 class="display" style="font-size:clamp(48px,7vw,88px); font-weight:800;">LifeGrid</h1>
+    <p class="lede" style="font-size:clamp(16px,1.6vw,22px); margin:14px auto 40px;">A team of small AI agents that plans real life for you — and always asks before it spends your money.</p>
+
+    <div style="display:flex; gap:40px; justify-content:center; margin-bottom:36px;">
+      <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
+        <div class="avatar">VV</div>
+        <div style="font-weight:600; font-size:15px;">Vishal Vishnoi</div>
       </div>
-      <div class="explainer-item">
-        <h3>How a request moves through the system</h3>
-        <p>You type a goal and a budget in the browser. That goes to our server, which starts the agents and streams back what each one is doing as it happens, instead of making you wait for a final answer. Along the way, agents look up things you've told it before — like "no early flights" — from a small database. Before anything that would spend money over $100, or book travel at all, it stops and asks you to approve it first.</p>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
+        <div class="avatar" style="background:linear-gradient(135deg, #EC4899, var(--accent));">HV</div>
+        <div style="font-weight:600; font-size:15px;">Harsh Vishnoi</div>
       </div>
-      <div class="explainer-item">
-        <h3>What Google technology we're using</h3>
-        <p><strong>Gemini</strong> (via Vertex AI) does the actual thinking for each agent. <strong>Google ADK</strong> is the framework that runs the agents in sequence and in parallel. <strong>Cloud Run</strong> hosts the app. <strong>Firestore</strong> is the database that remembers your preferences between visits. <strong>Cloud Trace</strong> records what each agent did, for debugging. And if you sign in with Google, it reads your real <strong>Google Calendar</strong> (view-only) instead of guessing your schedule.</p>
+    </div>
+
+    <span class="badge">Built for the All Things Agentic Hackathon — Fortified Enterprise Fleet track</span>
+  </section>
+
+  <!-- ============ 2. THE PROBLEM ============ -->
+  <section class="slide">
+    <p class="eyebrow">The problem</p>
+    <h2 class="display">Real life takes too many apps to plan.</h2>
+    <p class="lede">A simple family trip means one tab for flights, another for hotels, a group chat about the budget, a calendar you have to check by hand — and then hoping nobody forgets something important.</p>
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:20px; max-width:920px;">
+      <div class="card" style="padding:22px;">
+        <div style="font-size:26px; margin-bottom:10px;">🧭</div>
+        <div style="font-weight:600; margin-bottom:6px;">Too scattered</div>
+        <div style="font-size:13.5px; color:var(--muted); line-height:1.55;">Research, budget, and schedule all live in different places, so nothing talks to each other.</div>
       </div>
-      <div class="explainer-item">
-        <h3>What we'd add for a real version</h3>
-        <p>Today, flight, hotel, activity, and gear results are realistic sample data, not real bookings — only the calendar check is hooked up to something real. Next would be connecting real flight/hotel search, a couple more safety checks we haven't built yet, and making sure a request doesn't get lost if the server restarts partway through.</p>
+      <div class="card" style="padding:22px;">
+        <div style="font-size:26px; margin-bottom:10px;">💸</div>
+        <div style="font-weight:600; margin-bottom:6px;">Too risky to automate</div>
+        <div style="font-size:13.5px; color:var(--muted); line-height:1.55;">Handing an AI your calendar and your card is scary if it can act without asking first.</div>
+      </div>
+      <div class="card" style="padding:22px;">
+        <div style="font-size:26px; margin-bottom:10px;">🔁</div>
+        <div style="font-weight:600; margin-bottom:6px;">Too repetitive</div>
+        <div style="font-size:13.5px; color:var(--muted); line-height:1.55;">You re-explain your preferences — dietary needs, budget limits — every single time.</div>
       </div>
     </div>
   </section>
 
-  <section class="card">
-    <h2>System architecture</h2>
-    <p class="section-sub">The path one request actually takes, from your browser to Google Cloud and back.</p>
+  <!-- ============ 3. THE SOLUTION ============ -->
+  <section class="slide">
+    <p class="eyebrow">Meet LifeGrid</p>
+    <h2 class="display">One request. A whole team handles it.</h2>
+    <p class="lede">You type one plain-English goal and a budget. LifeGrid splits the work across a small team of specialist AI agents — each with one job — and only acts once you've said yes.</p>
+    <div style="display:flex; gap:16px; flex-wrap:wrap; max-width:820px;">
+      <div class="badge" style="background:var(--accent-soft); border-color:var(--accent); color:var(--accent); font-family:'IBM Plex Sans',sans-serif; font-weight:600; padding:10px 18px;">✓ Plans it for you</div>
+      <div class="badge" style="background:var(--accent-soft); border-color:var(--accent); color:var(--accent); font-family:'IBM Plex Sans',sans-serif; font-weight:600; padding:10px 18px;">✓ Remembers your preferences</div>
+      <div class="badge" style="background:var(--accent-soft); border-color:var(--accent); color:var(--accent); font-family:'IBM Plex Sans',sans-serif; font-weight:600; padding:10px 18px;">✓ Never spends without asking</div>
+      <div class="badge" style="background:var(--accent-soft); border-color:var(--accent); color:var(--accent); font-family:'IBM Plex Sans',sans-serif; font-weight:600; padding:10px 18px;">✓ Stops itself if something looks wrong</div>
+    </div>
+  </section>
+
+  <!-- ============ 4. THE AGENTS ============ -->
+  <section class="slide">
+    <p class="eyebrow">The team</p>
+    <h2 class="display">Seven agents, each with one job.</h2>
+    <p class="lede">No single AI trying to do everything — a small specialist for each part of the task, so it's easier to trust and easier to check.</p>
+    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:14px; max-width:1040px;">
+      <div class="card" style="padding:18px;">
+        <div style="font-size:22px;">🛡️</div>
+        <div style="font-weight:600; font-size:14px; margin:8px 0 4px;">Security Scanner</div>
+        <div style="font-size:12.5px; color:var(--muted); line-height:1.5;">Checks every request is safe before anything else happens.</div>
+      </div>
+      <div class="card" style="padding:18px;">
+        <div style="font-size:22px;">✈️</div>
+        <div style="font-weight:600; font-size:14px; margin:8px 0 4px;">Travel Agent</div>
+        <div style="font-size:12.5px; color:var(--muted); line-height:1.5;">Finds flights and hotels that match what you like.</div>
+      </div>
+      <div class="card" style="padding:18px;">
+        <div style="font-size:22px;">👨‍👩‍👧</div>
+        <div style="font-weight:600; font-size:14px; margin:8px 0 4px;">Family Agent</div>
+        <div style="font-size:12.5px; color:var(--muted); line-height:1.5;">Finds activities that fit everyone's needs.</div>
+      </div>
+      <div class="card" style="padding:18px;">
+        <div style="font-size:22px;">📅</div>
+        <div style="font-weight:600; font-size:14px; margin:8px 0 4px;">Calendar Agent</div>
+        <div style="font-size:12.5px; color:var(--muted); line-height:1.5;">Checks your real schedule for conflicts.</div>
+      </div>
+      <div class="card" style="padding:18px;">
+        <div style="font-size:22px;">🛍️</div>
+        <div style="font-weight:600; font-size:14px; margin:8px 0 4px;">Shopping Agent</div>
+        <div style="font-size:12.5px; color:var(--muted); line-height:1.5;">Works out what you'd need to pack or buy.</div>
+      </div>
+      <div class="card" style="padding:18px;">
+        <div style="font-size:22px;">💰</div>
+        <div style="font-weight:600; font-size:14px; margin:8px 0 4px;">Finance Agent</div>
+        <div style="font-size:12.5px; color:var(--muted); line-height:1.5;">Totals the cost and asks before anything gets spent.</div>
+      </div>
+      <div class="card" style="padding:18px;">
+        <div style="font-size:22px;">📝</div>
+        <div style="font-weight:600; font-size:14px; margin:8px 0 4px;">Plan Synthesizer</div>
+        <div style="font-size:12.5px; color:var(--muted); line-height:1.5;">Writes it all up into one clear final plan.</div>
+      </div>
+      <div class="card" style="padding:18px; display:flex; flex-direction:column; justify-content:center; background:var(--accent-soft); border-color:var(--accent);">
+        <div style="font-size:13px; color:var(--accent); font-weight:600; line-height:1.5;">Every agent can only touch what it's explicitly allowed to — anything else is blocked automatically.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 5. THE FLOW ============ -->
+  <section class="slide">
+    <p class="eyebrow">How a request flows</p>
+    <h2 class="display">Checked first. Fast where it can be. Careful where it matters.</h2>
+    <p class="lede">The order is fixed — the AI can't decide to skip the safety check, and if it finds a problem, everything else stops.</p>
     <figure>
       <div class="svg-wrap">
-        <svg viewBox="0 0 1120 660" role="img" aria-label="A request enters through the Next.js UI, streams over SSE to Cloud Run API routes, which start an ADK Runner. The orchestrator's pipeline is checked by three governance gateways, reads and writes two state stores, and calls out to Vertex AI, Cloud Trace, and the Google Calendar API.">
+        <svg viewBox="0 0 1180 460" role="img" aria-label="Security check runs first. If it finds a threat, everything stops. Otherwise, four agents research at the same time, then the budget is checked, then the final plan is written.">
           <defs>
-            <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)" />
             </marker>
-          </defs>
-
-          <!-- Band 1: Browser -->
-          <rect x="310" y="20" width="500" height="70" rx="10" class="node-fill node-stroke" />
-          <text x="560" y="50" text-anchor="middle" class="node-title" font-size="17">Browser — Next.js UI</text>
-          <text x="560" y="72" text-anchor="middle" class="node-sub" font-size="12">page.tsx · Sign in with Google (read-only Calendar)</text>
-
-          <line x1="560" y1="90" x2="560" y2="126" class="edge" marker-end="url(#arrow)" />
-          <text x="576" y="112" class="edge-label">SSE: TelemetryLog frames</text>
-
-          <!-- Band 2: API routes -->
-          <rect x="260" y="130" width="600" height="70" rx="10" class="node-fill node-stroke" />
-          <text x="560" y="160" text-anchor="middle" class="node-title" font-size="17">Next.js API Routes — Cloud Run</text>
-          <text x="560" y="182" text-anchor="middle" class="node-sub" font-size="11.5">/orchestrate · /approvals · /memory · /registry · /auth/[...nextauth]</text>
-
-          <line x1="560" y1="200" x2="560" y2="236" class="edge" marker-end="url(#arrow)" />
-          <text x="576" y="222" class="edge-label">runAsync()</text>
-
-          <!-- Band 3: ADK runtime -->
-          <rect x="90" y="240" width="940" height="80" rx="10" class="accent-fill accent-stroke" />
-          <text x="560" y="270" text-anchor="middle" class="accent-title" font-size="17">ADK Runner → lifeGridOrchestrator</text>
-          <text x="560" y="292" text-anchor="middle" class="node-sub" font-size="11.5">fixed SequentialAgent — a model can't skip a step. Pipeline detail: Fig. 2</text>
-          <text x="560" y="310" text-anchor="middle" class="node-sub" font-size="11.5">every tool call below passes through Zero-Trust's beforeToolCallback first</text>
-
-          <!-- fan-out to band 4 -->
-          <line x1="140" y1="320" x2="140" y2="396" class="edge" marker-end="url(#arrow)" />
-          <line x1="350" y1="320" x2="350" y2="396" class="edge" marker-end="url(#arrow)" />
-          <line x1="560" y1="320" x2="560" y2="396" class="edge" marker-end="url(#arrow)" />
-          <line x1="770" y1="320" x2="770" y2="396" class="edge" marker-end="url(#arrow)" />
-          <line x1="980" y1="320" x2="980" y2="396" class="edge" marker-end="url(#arrow)" />
-          <text x="106" y="360" class="edge-label">scans input</text>
-          <text x="300" y="360" class="edge-label">checks spend / booking</text>
-          <text x="503" y="378" class="edge-label">checks every</text>
-          <text x="516" y="391" class="edge-label">tool call</text>
-          <text x="736" y="360" class="edge-label">reads / writes</text>
-          <text x="920" y="378" class="edge-label">reads / writes</text>
-          <text x="912" y="391" class="edge-label">(cross-session)</text>
-
-          <!-- skip-connections to GCP band, routed through the gaps between band-4 boxes -->
-          <polyline points="455,320 455,486 230,556" class="edge" marker-end="url(#arrow)" />
-          <text x="270" y="512" class="edge-label">Gemini calls</text>
-          <polyline points="665,320 665,486 560,556" class="edge" marker-end="url(#arrow)" />
-          <text x="600" y="512" class="edge-label">OTel spans</text>
-
-          <!-- Band 4: governance + state -->
-          <rect x="50" y="400" width="180" height="70" rx="10" class="gov-fill gov-stroke" />
-          <text x="140" y="430" text-anchor="middle" class="gov-title" font-size="14">Model Armor</text>
-          <text x="140" y="450" text-anchor="middle" class="node-sub" font-size="10.5">prompt-injection scan</text>
-          <text x="140" y="463" text-anchor="middle" class="node-sub" font-size="10.5">(regex, partial)</text>
-
-          <rect x="260" y="400" width="180" height="70" rx="10" class="gov-fill gov-stroke" />
-          <text x="350" y="430" text-anchor="middle" class="gov-title" font-size="14">Policy Engine</text>
-          <text x="350" y="450" text-anchor="middle" class="node-sub" font-size="10.5">&gt;$100 or any travel</text>
-          <text x="350" y="463" text-anchor="middle" class="node-sub" font-size="10.5">booking → human approval</text>
-
-          <rect x="470" y="400" width="180" height="70" rx="10" class="gov-fill gov-stroke" />
-          <text x="560" y="430" text-anchor="middle" class="gov-title" font-size="14">Zero-Trust</text>
-          <text x="560" y="450" text-anchor="middle" class="node-sub" font-size="10.5">per-agent tool</text>
-          <text x="560" y="463" text-anchor="middle" class="node-sub" font-size="10.5">permission check</text>
-
-          <rect x="680" y="400" width="180" height="70" rx="10" class="node-fill node-stroke" />
-          <text x="770" y="430" text-anchor="middle" class="node-title" font-size="14">Session State</text>
-          <text x="770" y="450" text-anchor="middle" class="node-sub" font-size="10.5">per-run, ephemeral</text>
-          <text x="770" y="463" text-anchor="middle" class="node-sub" font-size="10.5">InMemorySessionService</text>
-
-          <rect x="890" y="400" width="180" height="70" rx="10" class="node-fill node-stroke" />
-          <text x="980" y="426" text-anchor="middle" class="node-title" font-size="14">Memory Bank</text>
-          <text x="980" y="446" text-anchor="middle" class="node-sub" font-size="10.5">Firestore (Cloud Run) /</text>
-          <text x="980" y="459" text-anchor="middle" class="node-sub" font-size="10.5">in-memory (local) — auto</text>
-
-          <!-- Session state -> Calendar API -->
-          <polyline points="770,470 770,530 890,556" class="edge" marker-end="url(#arrow)" />
-          <text x="800" y="516" class="edge-label">OAuth token</text>
-
-          <!-- Band 5: GCP -->
-          <rect x="90" y="560" width="280" height="70" rx="10" class="node-fill node-stroke" />
-          <text x="230" y="588" text-anchor="middle" class="node-title" font-size="14">Vertex AI</text>
-          <text x="230" y="608" text-anchor="middle" class="node-sub" font-size="10.5">Gemini 3.5-flash-lite</text>
-
-          <rect x="420" y="560" width="280" height="70" rx="10" class="node-fill node-stroke" />
-          <text x="560" y="588" text-anchor="middle" class="node-title" font-size="14">Cloud Trace</text>
-          <text x="560" y="608" text-anchor="middle" class="node-sub" font-size="10.5">OTel GenAI spans</text>
-
-          <rect x="750" y="560" width="280" height="70" rx="10" class="node-fill node-stroke" />
-          <text x="890" y="588" text-anchor="middle" class="node-title" font-size="14">Google Calendar API</text>
-          <text x="890" y="608" text-anchor="middle" class="node-sub" font-size="10.5">read-only, real when connected</text>
-        </svg>
-      </div>
-      <figcaption>Every arrow above is a real, working connection we've tested, not a planned one. The one gap not shown here: a request is still tied to one open connection for its whole run — if that connection drops, the run doesn't resume on its own yet.</figcaption>
-    </figure>
-  </section>
-
-  <section class="card">
-    <h2>What's actually built vs. still in progress</h2>
-    <p class="section-sub">The hackathon track asks for seven specific capabilities. Here's the honest status of each — nothing below is aspirational.</p>
-    <div class="pillars">
-      <div class="pillar">
-        <div class="pillar-head"><span class="dot done"></span><span class="pillar-name">Agent directory</span></div>
-        <div class="pillar-note">A list of all 7 agents and what each one is allowed to do, viewable live in the app.</div>
-      </div>
-      <div class="pillar">
-        <div class="pillar-head"><span class="dot partial"></span><span class="pillar-name">Long-running tasks</span></div>
-        <div class="pillar-note">Runs today, but a run is still tied to one open connection rather than able to survive a restart.</div>
-      </div>
-      <div class="pillar">
-        <div class="pillar-head"><span class="dot done"></span><span class="pillar-name">Memory of your preferences</span></div>
-        <div class="pillar-note">Saved for real in a Google Cloud database once deployed; kept in memory only during local testing.</div>
-      </div>
-      <div class="pillar">
-        <div class="pillar-head"><span class="dot done"></span><span class="pillar-name">Permission checks per agent</span></div>
-        <div class="pillar-note">Every agent can only use the tools it's been given permission for — anything else is blocked automatically.</div>
-      </div>
-      <div class="pillar">
-        <div class="pillar-head"><span class="dot done"></span><span class="pillar-name">Spend/booking approval</span></div>
-        <div class="pillar-note">One shared rule, checked the same way everywhere: over $100, or any travel booking, needs your OK first.</div>
-      </div>
-      <div class="pillar">
-        <div class="pillar-head"><span class="dot partial"></span><span class="pillar-name">Security scanning</span></div>
-        <div class="pillar-note">Catches attempts to manipulate the AI through your input — including ones hidden inside a URL — and a detected threat genuinely stops the rest of the run, not just a warning. Doesn't yet check tool results or catch leaked personal data.</div>
-      </div>
-      <div class="pillar">
-        <div class="pillar-head"><span class="dot done"></span><span class="pillar-name">Activity monitoring</span></div>
-        <div class="pillar-note">A live log you can watch as it happens, plus a technical trace of every step saved to Google Cloud.</div>
-      </div>
-    </div>
-  </section>
-
-  <section class="card">
-    <h2>Multi-agent pipeline</h2>
-    <p class="section-sub">The steps always run in the same order — the AI can't decide to skip the security check, because it isn't a choice it gets to make.</p>
-    <figure>
-      <div class="svg-wrap">
-        <svg viewBox="0 0 1180 620" role="img" aria-label="SecurityScanner runs first. If it finds a threat, the pipeline stops immediately and nothing else runs. Otherwise, four agents — Travel, Family, Calendar, Shopping — run concurrently inside a ParallelAgent, then FinanceAgent audits the combined budget, then PlanSynthesizer compiles the final plan. Each agent's tools are marked real or simulated.">
-          <defs>
-            <marker id="arrow2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-              <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)" />
-            </marker>
-            <marker id="arrow2-danger" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <marker id="a1d" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0,0 L10,5 L0,10 z" fill="var(--danger)" />
             </marker>
           </defs>
 
-          <rect x="470" y="20" width="240" height="70" rx="10" class="accent-fill accent-stroke" />
-          <text x="590" y="50" text-anchor="middle" class="accent-title" font-size="17">1. SecurityScanner</text>
-          <text x="590" y="70" text-anchor="middle" class="node-sub" font-size="11">scan_with_model_armor</text>
-          <text x="590" y="83" text-anchor="middle" font-size="11"><tspan class="ok-badge">● REAL</tspan></text>
+          <rect x="440" y="10" width="260" height="66" rx="12" class="accent-fill accent-stroke" />
+          <text x="570" y="42" text-anchor="middle" class="accent-title" font-size="18">1 · Security check</text>
+          <text x="570" y="63" text-anchor="middle" class="node-sub" font-size="11.5">scans your request first</text>
 
-          <line x1="590" y1="90" x2="590" y2="146" class="edge" marker-end="url(#arrow2)" />
-          <text x="608" y="122" class="edge-label">clean → continue</text>
+          <line x1="570" y1="76" x2="570" y2="126" class="edge" marker-end="url(#a1)" />
+          <text x="588" y="106" class="edge-label">looks clean</text>
 
-          <polyline points="710,45 900,45" class="danger-edge" marker-end="url(#arrow2-danger)" />
-          <text x="740" y="35" class="danger-edge-label">threat found</text>
+          <polyline points="700,43 900,43" class="danger-edge" marker-end="url(#a1d)" />
+          <text x="730" y="30" class="danger-edge-label">threat found</text>
+          <rect x="900" y="6" width="270" height="66" rx="12" class="danger-fill danger-stroke" />
+          <text x="1035" y="35" text-anchor="middle" class="danger-title" font-size="15">🛑 Everything stops</text>
+          <text x="1035" y="56" text-anchor="middle" class="node-sub" font-size="11">nothing else runs — no research, no spending</text>
 
-          <rect x="900" y="12" width="270" height="66" rx="10" class="danger-fill danger-stroke" />
-          <text x="1035" y="38" text-anchor="middle" class="danger-title" font-size="16">🛑 STOP — pipeline halts</text>
-          <text x="1035" y="58" text-anchor="middle" class="node-sub" font-size="10.5">every step below checks for this first</text>
-          <text x="1035" y="71" text-anchor="middle" class="node-sub" font-size="10.5">and skips its own work if set</text>
+          <rect x="10" y="130" width="1160" height="170" rx="14" class="container-box" />
+          <text x="30" y="154" class="container-label">2 · Four agents research at the same time</text>
 
-          <rect x="10" y="150" width="1160" height="210" rx="12" class="container-box" />
-          <text x="30" y="175" class="container-label">2. ParallelAgent — ResearchPhase (all four run concurrently)</text>
+          <rect x="30" y="166" width="265" height="120" rx="10" class="node-fill node-stroke" />
+          <text x="162" y="230" text-anchor="middle" class="node-title" font-size="17">✈️ Travel</text>
 
-          <rect x="30" y="190" width="265" height="150" rx="10" class="node-fill node-stroke" />
-          <text x="162" y="216" text-anchor="middle" class="node-title" font-size="14">TravelAgent</text>
-          <text x="162" y="238" text-anchor="middle" font-size="10.5"><tspan class="sim-badge">○ SIM</tspan><tspan class="node-sub"> search_flights</tspan></text>
-          <text x="162" y="254" text-anchor="middle" font-size="10.5"><tspan class="sim-badge">○ SIM</tspan><tspan class="node-sub"> search_hotels</tspan></text>
-          <text x="162" y="270" text-anchor="middle" font-size="10.5"><tspan class="ok-badge">● REAL</tspan><tspan class="node-sub"> read_memory_bank</tspan></text>
+          <rect x="315" y="166" width="265" height="120" rx="10" class="node-fill node-stroke" />
+          <text x="447" y="230" text-anchor="middle" class="node-title" font-size="17">👨‍👩‍👧 Family</text>
 
-          <rect x="315" y="190" width="265" height="150" rx="10" class="node-fill node-stroke" />
-          <text x="447" y="216" text-anchor="middle" class="node-title" font-size="14">FamilyAgent</text>
-          <text x="447" y="238" text-anchor="middle" font-size="10.5"><tspan class="sim-badge">○ SIM</tspan><tspan class="node-sub"> search_activities</tspan></text>
-          <text x="447" y="254" text-anchor="middle" font-size="10.5"><tspan class="ok-badge">● REAL</tspan><tspan class="node-sub"> read/write_memory_bank</tspan></text>
+          <rect x="600" y="166" width="265" height="120" rx="10" class="node-fill node-stroke" />
+          <text x="732" y="230" text-anchor="middle" class="node-title" font-size="17">📅 Calendar</text>
 
-          <rect x="600" y="190" width="265" height="150" rx="10" class="node-fill node-stroke" />
-          <text x="732" y="216" text-anchor="middle" class="node-title" font-size="14">CalendarAgent</text>
-          <text x="732" y="238" text-anchor="middle" font-size="10.5"><tspan class="ok-badge">● REAL</tspan><tspan class="node-sub"> when connected</tspan></text>
-          <text x="732" y="254" text-anchor="middle" font-size="10.5"><tspan class="sim-badge">○ SIM</tspan><tspan class="node-sub"> fallback otherwise</tspan></text>
-          <text x="732" y="270" text-anchor="middle" class="node-sub" font-size="10">read-only — never writes holds</text>
+          <rect x="885" y="166" width="265" height="120" rx="10" class="node-fill node-stroke" />
+          <text x="1017" y="230" text-anchor="middle" class="node-title" font-size="17">🛍️ Shopping</text>
 
-          <rect x="885" y="190" width="265" height="150" rx="10" class="node-fill node-stroke" />
-          <text x="1017" y="216" text-anchor="middle" class="node-title" font-size="14">ShoppingAgent</text>
-          <text x="1017" y="238" text-anchor="middle" font-size="10.5"><tspan class="sim-badge">○ SIM</tspan><tspan class="node-sub"> search_gear_and_supplies</tspan></text>
+          <line x1="570" y1="300" x2="570" y2="336" class="edge" marker-end="url(#a1)" />
 
-          <line x1="590" y1="360" x2="590" y2="406" class="edge" marker-end="url(#arrow2)" />
-          <text x="608" y="388" class="edge-label">travel/family/calendar/shopping_results</text>
+          <rect x="440" y="340" width="260" height="60" rx="12" class="node-fill node-stroke" />
+          <text x="570" y="367" text-anchor="middle" class="node-title" font-size="16">3 · Budget check</text>
+          <text x="570" y="386" text-anchor="middle" class="node-sub" font-size="11">over $100 or a booking? asks you first</text>
 
-          <rect x="470" y="410" width="240" height="70" rx="10" class="node-fill node-stroke" />
-          <text x="590" y="440" text-anchor="middle" class="node-title" font-size="17">3. FinanceAgent</text>
-          <text x="590" y="460" text-anchor="middle" font-size="10.5"><tspan class="ok-badge">● REAL</tspan><tspan class="node-sub"> check_budget_status, request_human_approval</tspan></text>
-
-          <line x1="590" y1="480" x2="590" y2="516" class="edge" marker-end="url(#arrow2)" />
-          <text x="608" y="502" class="edge-label">final_plan</text>
-
-          <rect x="470" y="520" width="240" height="70" rx="10" class="node-fill node-stroke" />
-          <text x="590" y="550" text-anchor="middle" class="node-title" font-size="17">4. PlanSynthesizer</text>
-          <text x="590" y="570" text-anchor="middle" class="node-sub" font-size="10.5">no tools — compiles session state into the final plan</text>
+          <line x1="570" y1="400" x2="570" y2="436" class="edge" marker-end="url(#a1)" />
+          <text x="330" y="420" text-anchor="middle" class="node-sub" font-size="11.5" style="font-family:'IBM Plex Sans',sans-serif;">4 · Final plan, written up clearly</text>
         </svg>
       </div>
-      <figcaption>Every tool shown here — real or simulated — is checked against that agent's permissions before it's allowed to run. If an agent tries to use something it's not permitted to, that's blocked automatically, not just discouraged. And if SecurityScanner finds a threat, none of the steps below it run at all.</figcaption>
     </figure>
-    <div class="legend">
-      <div class="legend-item"><span class="legend-swatch" style="background:var(--ok)"></span>Real: actually calls Gemini, the database, or your real calendar</div>
-      <div class="legend-item"><span class="legend-swatch" style="background:var(--sim)"></span>Simulated: realistic sample data, no real external call yet</div>
-      <div class="legend-item"><span class="legend-swatch" style="background:var(--danger)"></span>Stop condition: halts the entire run</div>
+  </section>
+
+  <!-- ============ 6. SAFETY ============ -->
+  <section class="slide">
+    <p class="eyebrow">Built-in safety</p>
+    <h2 class="display">Three checks, always on — not optional add-ons.</h2>
+    <p class="lede">Trust isn't a feature you bolt on later. These run on every single request, with no way to turn them off.</p>
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:18px; max-width:1000px;">
+      <div class="card" style="padding:24px;">
+        <div style="font-size:26px; margin-bottom:10px;">🛡️</div>
+        <div style="font-weight:700; font-size:16px; margin-bottom:8px;">Model Armor</div>
+        <div style="font-size:13.5px; color:var(--muted); line-height:1.6;">Scans every request for hidden or malicious instructions — including ones disguised inside a link. If it finds one, the whole run stops right there.</div>
+      </div>
+      <div class="card" style="padding:24px;">
+        <div style="font-size:26px; margin-bottom:10px;">✋</div>
+        <div style="font-weight:700; font-size:16px; margin-bottom:8px;">Spend approval</div>
+        <div style="font-size:13.5px; color:var(--muted); line-height:1.6;">One rule, always enforced: anything over $100, or any booking at all, pauses and waits for your yes.</div>
+      </div>
+      <div class="card" style="padding:24px;">
+        <div style="font-size:26px; margin-bottom:10px;">🔒</div>
+        <div style="font-weight:700; font-size:16px; margin-bottom:8px;">Zero-trust access</div>
+        <div style="font-size:13.5px; color:var(--muted); line-height:1.6;">Every agent has a fixed, narrow list of what it's allowed to touch. Anything outside it is blocked automatically.</div>
+      </div>
     </div>
   </section>
 
-  <footer class="page">
-    <span>Live: <span class="mono">life-grid-q5fdvprapa-uc.a.run.app</span></span>
-    <span>Repo: <span class="mono">github.com/vvishnoi/life-grid</span></span>
-    <span>Full detail: <span class="mono">docs/IMPLEMENTATION_PLAN.md</span></span>
-  </footer>
-</main>
+  <!-- ============ 7. TECH STACK ============ -->
+  <section class="slide">
+    <p class="eyebrow">What's under the hood</p>
+    <h2 class="display">Built on Google's agent stack, end to end.</h2>
+    <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:14px; max-width:980px;">
+      <div class="card" style="padding:18px 22px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-weight:600; font-size:14.5px;">Agent framework</span>
+        <span class="mono" style="font-size:13px; color:var(--muted);">Google ADK — Sequential + Parallel</span>
+      </div>
+      <div class="card" style="padding:18px 22px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-weight:600; font-size:14.5px;">AI models</span>
+        <span class="mono" style="font-size:13px; color:var(--muted);">Gemini 3.5 Flash-Lite / Flash</span>
+      </div>
+      <div class="card" style="padding:18px 22px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-weight:600; font-size:14.5px;">Hosting</span>
+        <span class="mono" style="font-size:13px; color:var(--muted);">Google Cloud Run</span>
+      </div>
+      <div class="card" style="padding:18px 22px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-weight:600; font-size:14.5px;">Memory</span>
+        <span class="mono" style="font-size:13px; color:var(--muted);">Google Cloud Firestore</span>
+      </div>
+      <div class="card" style="padding:18px 22px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-weight:600; font-size:14.5px;">Observability</span>
+        <span class="mono" style="font-size:13px; color:var(--muted);">Google Cloud Trace</span>
+      </div>
+      <div class="card" style="padding:18px 22px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-weight:600; font-size:14.5px;">Calendar</span>
+        <span class="mono" style="font-size:13px; color:var(--muted);">Google Calendar API, read-only</span>
+      </div>
+      <div class="card" style="padding:18px 22px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-weight:600; font-size:14.5px;">Frontend</span>
+        <span class="mono" style="font-size:13px; color:var(--muted);">Next.js 16, React 19, Tailwind v4</span>
+      </div>
+      <div class="card" style="padding:18px 22px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-weight:600; font-size:14.5px;">Sign-in</span>
+        <span class="mono" style="font-size:13px; color:var(--muted);">Auth.js — Google sign-in</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 8. TRY IT ============ -->
+  <section class="slide" style="align-items:center; text-align:center;">
+    <p class="eyebrow">See it live</p>
+    <h2 class="display" style="margin-bottom:34px;">Try it yourself, right now.</h2>
+    <div style="display:flex; flex-direction:column; gap:16px; align-items:center;">
+      <div class="card" style="padding:20px 34px; display:flex; align-items:center; gap:14px;">
+        <span style="font-size:20px;">🌐</span>
+        <span class="mono" style="font-size:16px;">life-grid-q5fdvprapa-uc.a.run.app</span>
+      </div>
+      <div class="card" style="padding:20px 34px; display:flex; align-items:center; gap:14px;">
+        <span style="font-size:20px;">💻</span>
+        <span class="mono" style="font-size:16px;">github.com/vvishnoi/life-grid</span>
+      </div>
+    </div>
+    <p class="lede" style="margin:32px auto 0;">Free scripted demo, no sign-up needed — or switch to Live mode to watch the real agents run.</p>
+  </section>
+
+  <!-- ============ 9. CODEBASE ============ -->
+  <section class="slide">
+    <p class="eyebrow">Inside the codebase</p>
+    <h2 class="display">Two clean pieces — the brain, and the app.</h2>
+    <p class="lede">The agent logic ships as its own package with zero dependency on this UI — usable standalone from any app, CLI, or a completely different frontend.</p>
+    <pre class="mono card" style="padding:28px 34px; font-size:14.5px; line-height:1.9; max-width:720px; overflow-x:auto;">life-grid/
+├── packages/agent/   <span style="color:var(--accent)">the agent brain — works with no UI at all</span>
+│   └── src/agents/   one folder per agent
+│       ├── security/
+│       ├── travel/
+│       ├── family/
+│       ├── calendar/
+│       ├── shopping/
+│       ├── finance/
+│       └── synthesizer/
+├── apps/web/         <span style="color:var(--accent)">the app you actually see</span>
+└── docs/             how it's built, and why</pre>
+  </section>
+
+  <!-- ============ 10. THANK YOU ============ -->
+  <section class="slide" style="align-items:center; text-align:center;">
+    <h2 class="display" style="font-size:clamp(40px,5.5vw,64px); margin-bottom:18px;">Thank you.</h2>
+    <p class="lede" style="margin:0 auto 30px;">LifeGrid — built for everyone who's ever wished planning real life took one request, not ten tabs.</p>
+    <div style="display:flex; gap:14px; flex-wrap:wrap; justify-content:center;">
+      <span class="badge">Vishal Vishnoi</span>
+      <span class="badge">Harsh Vishnoi</span>
+      <span class="badge mono">github.com/vvishnoi/life-grid</span>
+    </div>
+  </section>
+
+</div>
+
+<div class="slide-num" id="slideNum">1 / 10</div>
+<div class="hint"><span class="key">↓</span><span class="key">→</span> or scroll to move through slides</div>
+<div class="dots" id="dots"></div>
+
+<script>
+  const deck = document.getElementById('deck');
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const dotsEl = document.getElementById('dots');
+  const numEl = document.getElementById('slideNum');
+
+  slides.forEach((_, i) => {
+    const b = document.createElement('button');
+    b.className = 'dot';
+    b.setAttribute('aria-label', 'Go to slide ' + (i + 1));
+    b.addEventListener('click', () => slides[i].scrollIntoView({ behavior: 'smooth' }));
+    dotsEl.appendChild(b);
+  });
+  const dotEls = Array.from(dotsEl.children);
+
+  let current = 0;
+  function setActive(i) {
+    current = i;
+    dotEls.forEach((d, j) => d.classList.toggle('active', j === i));
+    numEl.textContent = (i + 1) + ' / ' + slides.length;
+  }
+  setActive(0);
+
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
+        setActive(slides.indexOf(entry.target));
+      }
+    });
+  }, { root: deck, threshold: [0.6] });
+  slides.forEach((s) => io.observe(s));
+
+  window.addEventListener('keydown', (e) => {
+    if (['ArrowDown', 'ArrowRight', 'PageDown', ' '].includes(e.key)) {
+      e.preventDefault();
+      slides[Math.min(current + 1, slides.length - 1)].scrollIntoView({ behavior: 'smooth' });
+    } else if (['ArrowUp', 'ArrowLeft', 'PageUp'].includes(e.key)) {
+      e.preventDefault();
+      slides[Math.max(current - 1, 0)].scrollIntoView({ behavior: 'smooth' });
+    }
+  });
+</script>
