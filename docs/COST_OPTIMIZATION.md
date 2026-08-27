@@ -12,7 +12,7 @@ everything else to Flash.
 **Status: applied.** `packages/agent/src/model.ts` sets one `geminiModel`
 constant (`gemini-3.5-flash-lite` as of 2026-08-19) used by all seven
 agents (security scanner, travel, family, calendar, shopping, finance,
-synthesizer). Don't swap any of these to a Pro model without a specific
+plan writer). Don't swap any of these to a Pro model without a specific
 reason — if one agent's output quality genuinely needs it, upgrade only
 that one agent, not the whole pipeline.
 

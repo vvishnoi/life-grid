@@ -91,9 +91,16 @@
     scroll-snap-align: start;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    /* Top-anchored, not centered — a centered column clips symmetrically
+       top-and-bottom the moment content (title + lede + a diagram) runs
+       taller than the viewport, which is exactly what made the flow
+       diagram appear to go missing on shorter windows. Title/thank-you
+       slides opt back into centering individually since they're short
+       and meant to read as a poster. */
+    justify-content: flex-start;
     padding: 6vh 9vw;
     position: relative;
+    overflow: hidden;
   }
 
   .eyebrow {
@@ -249,7 +256,7 @@
 <div class="deck" id="deck">
 
   <!-- ============ 1. TITLE ============ -->
-  <section class="slide" style="align-items:center; text-align:center;">
+  <section class="slide" style="align-items:center; text-align:center; justify-content:center;">
     <div class="mark-badge" style="width:56px;height:56px;border-radius:16px;margin:0 auto 28px;">
       <svg viewBox="0 0 100 100" style="width:30px;height:30px;">
         <circle cx="20" cy="20" r="6" fill="var(--accent-ink)"/>
@@ -262,7 +269,7 @@
       </svg>
     </div>
     <h1 class="display" style="font-size:clamp(48px,7vw,88px); font-weight:800;">LifeGrid</h1>
-    <p class="lede" style="font-size:clamp(16px,1.6vw,22px); margin:14px auto 40px;">A team of small AI agents that plans real life for you — and always asks before it spends your money.</p>
+    <p class="lede" style="font-size:clamp(16px,1.6vw,22px); margin:14px auto 40px;">A multi-agent system built with Google ADK — sequential where it must be safe, parallel where it can be fast.</p>
 
     <div style="display:flex; gap:40px; justify-content:center; margin-bottom:36px;">
       <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
@@ -353,7 +360,7 @@
       </div>
       <div class="card" style="padding:18px;">
         <div style="font-size:22px;">📝</div>
-        <div style="font-weight:600; font-size:14px; margin:8px 0 4px;">Plan Synthesizer</div>
+        <div style="font-weight:600; font-size:14px; margin:8px 0 4px;">Plan Writer</div>
         <div style="font-size:12.5px; color:var(--muted); line-height:1.5;">Writes it all up into one clear final plan.</div>
       </div>
       <div class="card" style="padding:18px; display:flex; flex-direction:column; justify-content:center; background:var(--accent-soft); border-color:var(--accent);">
@@ -367,9 +374,9 @@
     <p class="eyebrow">How a request flows</p>
     <h2 class="display">Checked first. Fast where it can be. Careful where it matters.</h2>
     <p class="lede">The order is fixed — the AI can't decide to skip the safety check, and if it finds a problem, everything else stops.</p>
-    <figure>
-      <div class="svg-wrap">
-        <svg viewBox="0 0 1180 460" role="img" aria-label="Security check runs first. If it finds a threat, everything stops. Otherwise, four agents research at the same time, then the budget is checked, then the final plan is written.">
+    <figure style="width:100%;">
+      <div class="svg-wrap" style="max-height:52vh; display:flex; justify-content:center;">
+        <svg viewBox="0 0 1180 460" style="width:auto; height:52vh; max-width:100%;" role="img" aria-label="Security check runs first. If it finds a threat, everything stops. Otherwise, four agents research at the same time, then the budget is checked, then the final plan is written.">
           <defs>
             <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)" />
@@ -485,7 +492,7 @@
   </section>
 
   <!-- ============ 8. TRY IT ============ -->
-  <section class="slide" style="align-items:center; text-align:center;">
+  <section class="slide" style="align-items:center; text-align:center; justify-content:center;">
     <p class="eyebrow">See it live</p>
     <h2 class="display" style="margin-bottom:34px;">Try it yourself, right now.</h2>
     <div style="display:flex; flex-direction:column; gap:16px; align-items:center;">
@@ -515,13 +522,13 @@
 │       ├── calendar/
 │       ├── shopping/
 │       ├── finance/
-│       └── synthesizer/
+│       └── plan-writer/
 ├── apps/web/         <span style="color:var(--accent)">the app you actually see</span>
 └── docs/             how it's built, and why</pre>
   </section>
 
   <!-- ============ 10. THANK YOU ============ -->
-  <section class="slide" style="align-items:center; text-align:center;">
+  <section class="slide" style="align-items:center; text-align:center; justify-content:center;">
     <h2 class="display" style="font-size:clamp(40px,5.5vw,64px); margin-bottom:18px;">Thank you.</h2>
     <p class="lede" style="margin:0 auto 30px;">LifeGrid — built for everyone who's ever wished planning real life took one request, not ten tabs.</p>
     <div style="display:flex; gap:14px; flex-wrap:wrap; justify-content:center;">

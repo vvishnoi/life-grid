@@ -11,7 +11,7 @@ export const SECURITY_THREAT_STATE_KEY = 'security_threat_detected';
 
 // event-mapper.ts matches on this exact text to render it as a proper
 // security_alert (not fall through to the generic CONTENT branch, which
-// would otherwise misclassify it as a real finished plan — see PlanSynthesizer
+// would otherwise misclassify it as a real finished plan — see PlanWriter
 // case below).
 export const SECURITY_BLOCK_PRIMARY_MESSAGE =
   'LifeGrid stopped here — Model Armor detected and blocked a prompt-injection attempt in your request, so research, budgeting, and booking never ran.';
@@ -25,7 +25,7 @@ export const SECURITY_BLOCK_SKIP_MESSAGE =
 // documented ADK mechanism for this: returning Content from it skips that
 // specific agent's own run and uses the content as its output instead (see
 // BaseAgent's handleBeforeAgentCallback). Applying the same callback to
-// ResearchPhase, FinanceAgent, and PlanSynthesizer makes the security gate
+// ResearchPhase, FinanceAgent, and PlanWriter makes the security gate
 // actually gate something, instead of just narrating a threat that every
 // downstream agent still acts as if nothing happened.
 export function createSecurityGateCallback(message: string): SingleAgentCallback {

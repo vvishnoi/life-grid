@@ -53,7 +53,7 @@ export async function synthesizeFinalPlan(
     )
     .join('\n');
 
-  const prompt = `You are LifeGrid's Plan Synthesizer. Write the final, polished summary for the user's request, now that they've reviewed and decided on every item that needed their approval.
+  const prompt = `You are LifeGrid's Plan Writer. Write the final, polished summary for the user's request, now that they've reviewed and decided on every item that needed their approval.
 
 Original request: ${context.originalGoal}
 ${context.budgetCap ? `Budget cap: $${context.budgetCap.toLocaleString()}` : ''}

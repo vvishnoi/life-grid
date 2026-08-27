@@ -12,7 +12,7 @@ const AGENT_NAME_TO_ID: Record<string, string> = {
   CalendarAgent: 'calendar-agent',
   ShoppingAgent: 'shopping-agent',
   FinanceAgent: 'finance-agent',
-  PlanSynthesizer: 'orchestrator',
+  PlanWriter: 'orchestrator',
   ResearchPhase: 'orchestrator',
   LifeGridOrchestrator: 'orchestrator',
 };
@@ -24,7 +24,7 @@ const AGENT_DISPLAY_NAME: Record<string, string> = {
   CalendarAgent: 'Calendar & Time Agent',
   ShoppingAgent: 'Household & Shopping Agent',
   FinanceAgent: 'Finance & Budget Agent',
-  PlanSynthesizer: 'Plan Synthesizer',
+  PlanWriter: 'Plan Writer',
   ResearchPhase: 'Research Phase',
   LifeGridOrchestrator: 'Goal Orchestrator',
 };
@@ -76,7 +76,7 @@ export function mapAdkEventToTelemetryLogs(event: Event, sessionId: string, isRe
         // A security-gate skip (gateway/security-gate.ts) — the agent's own
         // work never ran, ADK's beforeAgentCallback returned this content
         // directly as its output. isFinalResponse would still be true for
-        // PlanSynthesizer here (it's that agent's one and only event), which
+        // PlanWriter here (it's that agent's one and only event), which
         // would otherwise get misclassified as execution_success below and
         // show a misleading "Your plan is ready" hero card for a run that
         // was actually blocked. Route these to their own types instead.
@@ -99,17 +99,17 @@ export function mapAdkEventToTelemetryLogs(event: Event, sessionId: string, isRe
         // Known ADK 1.6.0 limitation: after a resumed approval, the
         // Runner's resumability shortcut re-enters FinanceAgent directly and
         // does NOT hand back off to the outer SequentialAgent to run
-        // PlanSynthesizer afterward — confirmed by tracing a real resume
-        // (FinanceAgent finishes cleanly, stream ends, PlanSynthesizer never
+        // PlanWriter afterward — confirmed by tracing a real resume
+        // (FinanceAgent finishes cleanly, stream ends, PlanWriter never
         // invoked). So on a resumed run only, FinanceAgent's own final reply
         // is treated as the completion signal too — otherwise a post-approval
         // run ends on a plain grey "thought" bubble with no success state.
         // Gated to `isResume` because on a normal (non-paused) run,
         // FinanceAgent often has an earlier no-function-call turn (e.g.
         // "still waiting on the Travel Agent") that would otherwise be
-        // misflagged as final even though PlanSynthesizer runs right after.
+        // misflagged as final even though PlanWriter runs right after.
         const isFinalPlan =
-          (event.author === 'PlanSynthesizer' || (isResume && event.author === 'FinanceAgent')) && isFinalResponse(event);
+          (event.author === 'PlanWriter' || (isResume && event.author === 'FinanceAgent')) && isFinalResponse(event);
         logs.push(
           baseLog(event, {
             type: isFinalPlan ? 'execution_success' : 'thought',

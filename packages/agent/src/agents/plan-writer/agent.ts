@@ -9,9 +9,9 @@ const instructionsPath = join(dirname(fileURLToPath(import.meta.url)), 'instruct
 const instructionText = readFileSync(instructionsPath, 'utf-8');
 
 // Runs LAST — compiles every other agent's output into one final plan.
-export function createPlanSynthesizer(model: string = geminiModel): LlmAgent {
+export function createPlanWriter(model: string = geminiModel): LlmAgent {
   return new LlmAgent({
-    name: 'PlanSynthesizer',
+    name: 'PlanWriter',
     model,
     instruction: instructionText,
     tools: [],
@@ -20,4 +20,4 @@ export function createPlanSynthesizer(model: string = geminiModel): LlmAgent {
   });
 }
 
-export const planSynthesizer = createPlanSynthesizer();
+export const planWriter = createPlanWriter();

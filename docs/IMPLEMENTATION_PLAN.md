@@ -166,7 +166,7 @@ flowchart TB
             SHP["ShoppingAgent"]
         end
         FIN["3. FinanceAgent"]
-        SYN["4. PlanSynthesizer"]
+        SYN["4. PlanWriter"]
         SEC --> par --> FIN --> SYN
     end
 ```
@@ -182,7 +182,7 @@ multi-agent pattern.**
   gets to make.
 - *Also*: real data dependencies are linear at the phase level —
   `FinanceAgent` needs `travel_results`/`family_results`/`shopping_results`
-  populated; `PlanSynthesizer` needs `finance_results`. A `SequentialAgent`
+  populated; `PlanWriter` needs `finance_results`. A `SequentialAgent`
   models exactly that.
 - *Also*: bounded cost (NFR-7) and zero-trust permissions scoped to a
   known roster (NFR-1) both require a **closed, fixed set** of agents
@@ -325,7 +325,7 @@ sequenceDiagram
         O-->>U: SSE data: approval_required (x N, one batchId)
         O-->>U: SSE data: done
     else no approval needed
-        P-->>O: PlanSynthesizer final response
+        P-->>O: PlanWriter final response
         O-->>U: SSE data: execution_success
         O-->>U: SSE data: done
     end
@@ -433,11 +433,11 @@ a real browser, so that last step is manual-test-only, not automated here.
 ## 3.4 Verified by actually running the system (not just review)
 
 1. **Security**: live injection-test preset correctly detected and handled by `securityScannerAgent`.
-2. **Found & fixed — `SequentialAgent` doesn't stop on a nested pause.** First live approval-triggering run hung past a 90s timeout because `PlanSynthesizer` kept getting invoked after `FinanceAgent` paused. Root-caused in `sequential_agent.js` (no `endInvocation` check between sub-agents); fixed on the consumer side in `stream-response.ts` by breaking the event loop when `event.actions.requestedToolConfirmations` is populated.
+2. **Found & fixed — `SequentialAgent` doesn't stop on a nested pause.** First live approval-triggering run hung past a 90s timeout because `PlanWriter` kept getting invoked after `FinanceAgent` paused. Root-caused in `sequential_agent.js` (no `endInvocation` check between sub-agents); fixed on the consumer side in `stream-response.ts` by breaking the event loop when `event.actions.requestedToolConfirmations` is populated.
 3. **Found & fixed — premature break.** First fix attempt broke on `event.longRunningToolIds` instead, which is also set on the *initial* tool-call-request event before the tool even runs — silently swallowed all pending approvals. Corrected to check `actions.requestedToolConfirmations` specifically.
 4. **Found & fixed — batch approval protocol error.** Resolving one of several simultaneous `request_human_approval` calls in isolation produced a hard Gemini API error ("number of function response parts..."). Fixed via `ApprovalItem.batchId` + client-side batching in `page.tsx`.
 5. **Full happy path confirmed**: fresh live run → real flight/hotel search → multiple simultaneous approvals → full-batch resume → `execution_success` completion, inspected at the raw SSE frame level.
-6. **Known, accepted limitation**: after a resumed approval, ADK 1.6.0's resumability re-enters `FinanceAgent` directly but does not hand control back to the outer `SequentialAgent` to run `PlanSynthesizer` — verified live (resume produces only `FinanceAgent` events, then stream ends). Mitigated by treating `FinanceAgent`'s own final reply as the success signal on resumed runs (`event-mapper.ts`, `isResume` flag), but the polished final itinerary from `PlanSynthesizer` is never shown after an approval. Not fixed further to avoid burning additional paid Vertex AI test cycles chasing an unverified fix mid-session.
+6. **Known, accepted limitation**: after a resumed approval, ADK 1.6.0's resumability re-enters `FinanceAgent` directly but does not hand control back to the outer `SequentialAgent` to run `PlanWriter` — verified live (resume produces only `FinanceAgent` events, then stream ends). Mitigated by treating `FinanceAgent`'s own final reply as the success signal on resumed runs (`event-mapper.ts`, `isResume` flag), but the polished final itinerary from `PlanWriter` is never shown after an approval. Not fixed further to avoid burning additional paid Vertex AI test cycles chasing an unverified fix mid-session.
 7. **Model upgrade verified live (2026-08-19)**: `gemini-2.5-flash` → `gemini-3.5-flash-lite` for hackathon compliance. Direct API probes against `us-central1` returned 404 for every `gemini-3.x` model tried; the `global` Vertex AI location resolved `gemini-3.5-flash` and `gemini-3.5-flash-lite` successfully. Confirmed the app itself works end-to-end against the new model+location combo, not just the raw API.
 8. **OTel → Cloud Trace verified live (2026-08-19)**: enabled the Cloud Trace API, wired `src/instrumentation.ts`, and confirmed by directly querying the Cloud Trace API afterward — pulled back a real trace with the full span hierarchy and OTel GenAI semantic-convention attributes. Note the read API (`GET .../traces`) has noticeable ingestion lag (a query immediately after the run came back empty; the same query a short while later returned the trace) — don't take an immediately-empty query as a failure signal.
 9. **Real Cloud Run deploy, verified live (2026-08-19)**: `scripts/gcp-up.sh` builds, pushes to Artifact Registry, and deploys — found and fixed three real bugs surfaced only by actually running it: (a) `next.config.ts` was missing `output: 'standalone'`, so the Dockerfile's `.next/standalone` COPY step would have failed; (b) Cloud Build substitution defaults can't reference other custom substitutions or built-ins like `$PROJECT_ID` reliably — had to inline values instead of an `_IMAGE` indirection; (c) `$COMMIT_SHA` is only populated when Cloud Build is triggered from an actual git commit, not for `gcloud builds submit` from local source — switched to `$BUILD_ID`. Also found this project's Cloud Build runs as the default *compute* SA, not the legacy Cloud Build SA IAM guides usually assume — the script now grants both, since which one applies is a per-project setting. Post-deploy, verified all four cases against the live URL: homepage 200, scripted mode works (free), live mode correctly 401s without the `x-demo-key` header, and 200s with it.
@@ -536,4 +536,4 @@ Ordered by what blocks eligibility/judging, not by difficulty:
 4. ~~**Wire `ZeroTrustGateway.validateAccess()` into tool execution**~~ — ✅ done 2026-08-22, see §3.1.
 5. ~~**Decide Memory Bank persistence**~~ — ✅ done 2026-08-22: real Firestore when deployed, in-memory locally, see §3.1.
 6. ~~Write the README spin-up section; adapt Part 2 §2.2's diagram for the submission's architecture-diagram deliverable.~~ — ✅ done 2026-08-22: README spin-up section updated for the monorepo; `docs/submission/` has the architecture diagram (`architecture-diagram.html`, two figures — system + pipeline, real/simulated marked per tool), a full Devpost text draft (`DEVPOST_DESCRIPTION.md`), and a timed demo-video shot list (`DEMO_SCRIPT.md`). Still outstanding: actually recording the video, and fixing the Calendar OAuth test-user list (§3.3) before it's in the recording.
-7. Only after 1–6: the `PlanSynthesizer`-after-resume gap (§3.4 point 6) and real external API integrations (§3.3) as stretch goals.
+7. Only after 1–6: the `PlanWriter`-after-resume gap (§3.4 point 6) and real external API integrations (§3.3) as stretch goals.

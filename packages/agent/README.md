@@ -20,7 +20,7 @@ src/
     calendar/       "
     shopping/       "
     finance/        instructions.md + agent.ts   (runs 3rd: budget + approvals)
-    synthesizer/    instructions.md + agent.ts   (runs 4th: final plan)
+    plan-writer/    instructions.md + agent.ts   (runs 4th: final plan)
     index.ts        composes them into the fixed Sequential/Parallel pipeline
   tools.ts          FunctionTool/LongRunningFunctionTool defs the agents call
   gateway/          Model Armor, Policy Engine, Zero-Trust — the governance layer

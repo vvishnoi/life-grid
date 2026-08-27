@@ -17,7 +17,7 @@ export {
   calendarAgent,
   shoppingAgent,
   financeAgent,
-  planSynthesizer,
+  planWriter,
   buildLifeGridOrchestrator,
 } from './agents/index.js';
 export { geminiModel, AVAILABLE_MODELS, AUTO_MODEL, type ModelOption } from './model.js';

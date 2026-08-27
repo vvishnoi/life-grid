@@ -5,7 +5,7 @@ import { familyAgent, createFamilyAgent } from './family/agent.js';
 import { calendarAgent, createCalendarAgent } from './calendar/agent.js';
 import { shoppingAgent, createShoppingAgent } from './shopping/agent.js';
 import { financeAgent, createFinanceAgent } from './finance/agent.js';
-import { planSynthesizer, createPlanSynthesizer } from './synthesizer/agent.js';
+import { planWriter, createPlanWriter } from './plan-writer/agent.js';
 import { createSecurityGateCallback, SECURITY_BLOCK_PRIMARY_MESSAGE } from '../gateway/security-gate.js';
 
 export {
@@ -15,7 +15,7 @@ export {
   calendarAgent,
   shoppingAgent,
   financeAgent,
-  planSynthesizer,
+  planWriter,
 };
 
 // Research phase: Travel, Family, Calendar, and Shopping are mutually
@@ -36,7 +36,7 @@ export const researchPhase = new ParallelAgent({
   beforeAgentCallback: createSecurityGateCallback(SECURITY_BLOCK_PRIMARY_MESSAGE),
 });
 
-// Root pipeline: Security -> Research -> Finance -> Synthesize.
+// Root pipeline: Security -> Research -> Finance -> Write-up.
 //
 // A fixed SequentialAgent, not a dynamic/routed multi-agent pattern — the
 // security gate must be structurally unskippable. A model deciding its own
@@ -45,7 +45,7 @@ export const researchPhase = new ParallelAgent({
 // a decision the model gets to make. See docs/IMPLEMENTATION_PLAN.md §2.3.
 export const lifeGridOrchestrator = new SequentialAgent({
   name: 'LifeGridOrchestrator',
-  subAgents: [securityScannerAgent, researchPhase, financeAgent, planSynthesizer],
+  subAgents: [securityScannerAgent, researchPhase, financeAgent, planWriter],
 });
 
 // Builds a fresh, independent copy of the whole pipeline wired to one
@@ -60,7 +60,7 @@ export function buildLifeGridOrchestrator(model?: string): SequentialAgent {
   const calendar = createCalendarAgent(model);
   const shopping = createShoppingAgent(model);
   const finance = createFinanceAgent(model);
-  const synthesizer = createPlanSynthesizer(model);
+  const writer = createPlanWriter(model);
 
   const research = new ParallelAgent({
     name: 'ResearchPhase',
@@ -70,6 +70,6 @@ export function buildLifeGridOrchestrator(model?: string): SequentialAgent {
 
   return new SequentialAgent({
     name: 'LifeGridOrchestrator',
-    subAgents: [security, research, finance, synthesizer],
+    subAgents: [security, research, finance, writer],
   });
 }

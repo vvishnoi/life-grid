@@ -48,7 +48,7 @@ flowchart TD
     D -->|"over $100 or any booking"| APP(["⏸ pauses for your approval"])
     APP --> E
     D -->|"nothing needs approval"| E
-    E["4 · Plan Synthesizer<br/>writes the final plan"]
+    E["4 · Plan Writer<br/>writes the final plan"]
 ```
 
 Stage 1 is **sequential**, stage 2 is **parallel** (four agents at once instead of one after another), and stages 3–4 are sequential again. That mix is exactly why LifeGrid is built as a Google ADK `SequentialAgent` wrapping a `ParallelAgent`, rather than one big agent or a fully model-directed flow.
@@ -80,7 +80,7 @@ You type a goal and a budget in the browser. The server starts the agents and st
 | 2 | **Calendar Agent** | Checks your schedule for conflicts in the trip dates. | Google Calendar, read-only (real when connected, else simulated) |
 | 2 | **Shopping Agent** | Works out what you'd need to pack or buy for the trip. | Gear/packing search (simulated) |
 | 3 | **Finance Agent** | Adds everything up, checks it against your budget cap, and asks for your approval on anything over $100 or any booking. | Budget check + human-approval gate (real) |
-| 4 | **Plan Synthesizer** | Compiles every other agent's results into one final, readable plan. | none — just writes the summary |
+| 4 | **Plan Writer** | Compiles every other agent's results into one final, readable plan. | none — just writes the summary |
 
 *Row "2" is one stage — those four agents run concurrently, not one after another.*
 
