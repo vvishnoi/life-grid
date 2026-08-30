@@ -14,8 +14,12 @@
 
 steps:
   # 1. Build the container image
+  # --build-arg here is what actually gets NEXT_PUBLIC_DEMO_API_KEY into the
+  # browser bundle — see Dockerfile's builder stage comment. The deploy
+  # step's --set-env-vars DEMO_API_KEY (server-side) alone was silently
+  # unreachable from the client, confirmed live 2026-08-29.
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/life-grid/life-grid:$BUILD_ID', '.']
+    args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/life-grid/life-grid:$BUILD_ID', '--build-arg', 'NEXT_PUBLIC_DEMO_API_KEY=${_DEMO_API_KEY}', '.']
 
   # 2. Push container to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'

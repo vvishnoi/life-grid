@@ -22,6 +22,15 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED 1
+# NEXT_PUBLIC_* vars are inlined into the client JS bundle at build time,
+# not read at container runtime — setting DEMO_API_KEY on the deployed
+# Cloud Run service (below) does NOT make the browser start sending
+# x-demo-key; only this does. Without it, every live-mode request from the
+# actual website 401s silently (server checks DEMO_API_KEY, browser never
+# learned to send it), confirmed live 2026-08-29. Same value as
+# _DEMO_API_KEY passed to the deploy step — client and server must agree.
+ARG NEXT_PUBLIC_DEMO_API_KEY
+ENV NEXT_PUBLIC_DEMO_API_KEY=$NEXT_PUBLIC_DEMO_API_KEY
 # Builds packages/agent first (apps/web imports its compiled dist/), then
 # apps/web itself. See root package.json's "build" script.
 RUN npm run build

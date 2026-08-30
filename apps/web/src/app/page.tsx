@@ -24,6 +24,22 @@ const LIVE_MODE_HEADERS: HeadersInit = {
   ...(process.env.NEXT_PUBLIC_DEMO_API_KEY ? { 'x-demo-key': process.env.NEXT_PUBLIC_DEMO_API_KEY } : {}),
 };
 
+// A non-2xx /api/orchestrate or /api/approvals response is a plain JSON
+// error body, not an SSE stream — consumeOrchestrationStream would just
+// silently find no "data:" lines to parse and return having done nothing,
+// which looked exactly like "live mode does nothing" with no explanation
+// (confirmed live 2026-08-29: the real cause was a missing demo-key header,
+// but ANY failed request would have looked identical without this check).
+async function describeFailedResponse(response: Response): Promise<string> {
+  try {
+    const data = await response.json();
+    if (data?.error) return data.error as string;
+  } catch {
+    // body wasn't JSON — fall through to the status line below
+  }
+  return `${response.status} ${response.statusText}`;
+}
+
 export default function LifeGridDashboard() {
   const [agents] = useState<AgentInfo[]>(ENTERPRISE_AGENT_REGISTRY);
   const [activeAgentId, setActiveAgentId] = useState<string | undefined>(undefined);
@@ -152,6 +168,23 @@ export default function LifeGridDashboard() {
           headers: LIVE_MODE_HEADERS,
           body: JSON.stringify({ customPrompt: prompt, budgetCap, scenarioId, mode: 'live', model })
         });
+
+        if (!response.ok) {
+          const message = await describeFailedResponse(response);
+          setLogs(prev => [
+            {
+              id: `log-err-${Date.now()}`,
+              timestamp: new Date().toLocaleTimeString(),
+              agentId: 'orchestrator',
+              agentName: 'Goal Orchestrator',
+              type: 'error',
+              message: `Couldn't start this run: ${message}`,
+              riskLevel: 'high'
+            },
+            ...prev
+          ]);
+          return;
+        }
 
         await consumeOrchestrationStream(response, {
           onSessionId: (sessionId) => setLiveSessionId(sessionId),
@@ -301,6 +334,22 @@ export default function LifeGridDashboard() {
 
       setIsRunning(true);
       try {
+        if (!response.ok) {
+          const message = await describeFailedResponse(response);
+          setLogs(prev => [
+            {
+              id: `log-err-${Date.now()}`,
+              timestamp: new Date().toLocaleTimeString(),
+              agentId: 'finance-agent',
+              agentName: 'Finance & Budget Agent',
+              type: 'error',
+              message: `Your decision was recorded, but the final write-up failed: ${message}`,
+              riskLevel: 'high'
+            },
+            ...prev
+          ]);
+          return;
+        }
         await consumeOrchestrationStream(response, {
           onLog: (log) => {
             setActiveAgentId(log.agentId);
