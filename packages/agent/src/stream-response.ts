@@ -50,14 +50,15 @@ function createSseStream(sessionId: string, run: (send: (frame: OrchestrationFra
 export function streamAdkEvents(
   events: AsyncGenerator<Event, void, undefined>,
   sessionId: string,
-  isResume = false
+  isResume = false,
+  approvalThreshold?: number
 ): Response {
   return createSseStream(sessionId, async (send) => {
     for await (const event of events) {
       if (process.env.ADK_DEBUG) {
         console.log('[ADK_DEBUG] event', JSON.stringify({ author: event.author, actions: event.actions, parts: event.content?.parts }));
       }
-      for (const log of mapAdkEventToTelemetryLogs(event, sessionId, isResume)) {
+      for (const log of mapAdkEventToTelemetryLogs(event, sessionId, isResume, approvalThreshold)) {
         send({ kind: 'log', log });
       }
       // A pending human-confirmation is the caller's cue to stop pulling

@@ -2,7 +2,7 @@ import { FunctionTool, LongRunningFunctionTool, type Context } from '@google/adk
 import { google } from 'googleapis';
 import { z } from 'zod';
 import { ModelArmorGateway } from './gateway/model-armor.js';
-import { PolicyEngine } from './gateway/policy-engine.js';
+import { PolicyEngine, SPEND_LIMIT_THRESHOLD } from './gateway/policy-engine.js';
 import { ZeroTrustGateway } from './gateway/zero-trust.js';
 import { SECURITY_THREAT_STATE_KEY } from './gateway/security-gate.js';
 import { memoryBank } from './memory/index.js';
@@ -123,6 +123,10 @@ export const requestApproval = new LongRunningFunctionTool({
       };
     }
 
+    // Settings screen (Live mode only) — falls back to the $100 default if
+    // never set, e.g. a session created before this existed.
+    const threshold = tool_context?.state?.get<number>('approvalThreshold') ?? SPEND_LIMIT_THRESHOLD;
+
     const policyResult = PolicyEngine.evaluateAction({
       agentId: agentName.toLowerCase().replace(/\s+/g, '-'),
       agentName,
@@ -131,6 +135,7 @@ export const requestApproval = new LongRunningFunctionTool({
       summary,
       amount,
       vendor,
+      threshold,
     });
 
     if (policyResult.requiresApproval) {

@@ -2,13 +2,15 @@
 
 import React from 'react';
 import { useSession, signIn, signOut } from 'next-auth/react';
-import { AVAILABLE_MODELS, AUTO_MODEL, geminiModel } from '@lifegrid/agent/client';
+import { AVAILABLE_MODELS, AUTO_MODEL, geminiModel, APPROVAL_THRESHOLD_OPTIONS, SPEND_LIMIT_THRESHOLD } from '@lifegrid/agent/client';
 import { Sun, Moon, Monitor, CalendarCheck, LogOut, Sparkles, Check } from 'lucide-react';
 import { useTheme } from './ThemeProvider';
 
 interface SettingsViewProps {
   model: string;
   onModelChange: (model: string) => void;
+  approvalThreshold: number;
+  onApprovalThresholdChange: (threshold: number) => void;
 }
 
 const THEME_OPTIONS = [
@@ -17,12 +19,37 @@ const THEME_OPTIONS = [
   { id: 'system' as const, icon: Monitor, label: 'Match system' },
 ];
 
-export function SettingsView({ model, onModelChange }: SettingsViewProps) {
+export function SettingsView({ model, onModelChange, approvalThreshold, onApprovalThresholdChange }: SettingsViewProps) {
   const { theme, setTheme } = useTheme();
   const { data: session, status } = useSession();
 
   return (
     <div className="space-y-8">
+      {/* Approval threshold */}
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold text-ink">Spend approval threshold (Live mode)</h2>
+          <p className="text-xs text-muted mt-0.5">
+            An action over this amount pauses and asks for your OK before it happens. Flights and hotel bookings always ask, regardless of amount.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {APPROVAL_THRESHOLD_OPTIONS.map((amount) => (
+            <button
+              key={amount}
+              onClick={() => onApprovalThresholdChange(amount)}
+              className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
+                approvalThreshold === amount ? 'border-accent bg-accent-soft text-accent' : 'border-border bg-surface text-ink hover:bg-surface-2'
+              }`}
+            >
+              {approvalThreshold === amount && <Check className="w-3.5 h-3.5 shrink-0" />}
+              <span>${amount.toLocaleString()}{amount === SPEND_LIMIT_THRESHOLD ? ' (default)' : ''}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
       {/* Model picker */}
       <section className="space-y-3">
         <div>

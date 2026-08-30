@@ -7,4 +7,5 @@
 export { ENTERPRISE_AGENT_REGISTRY, getAgentById } from './registry.js';
 export { AVAILABLE_MODELS, AUTO_MODEL, geminiModel, type ModelOption } from './model.js';
 export { buildScriptedFinalPlan } from './scripted-final-plan.js';
+export { SPEND_LIMIT_THRESHOLD, APPROVAL_THRESHOLD_OPTIONS } from './gateway/policy-engine.js';
 export * from './types.js';

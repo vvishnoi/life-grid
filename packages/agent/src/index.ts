@@ -43,7 +43,7 @@ export {
 
 // ── Governance gateways (Agent Gateway / Model Armor / Zero-Trust pillars) ─
 export { ModelArmorGateway, type SecurityScanResult } from './gateway/model-armor.js';
-export { PolicyEngine, SPEND_LIMIT_THRESHOLD, type PolicyCheckResult } from './gateway/policy-engine.js';
+export { PolicyEngine, SPEND_LIMIT_THRESHOLD, APPROVAL_THRESHOLD_OPTIONS, type PolicyCheckResult } from './gateway/policy-engine.js';
 export { ZeroTrustGateway, createZeroTrustCallback, type ZeroTrustValidation } from './gateway/zero-trust.js';
 
 // ── Memory Bank (cross-session preferences) ─────────────────────────────

@@ -9,15 +9,18 @@ import {
   streamAdkEvents,
   AVAILABLE_MODELS,
   AUTO_MODEL,
+  APPROVAL_THRESHOLD_OPTIONS,
+  SPEND_LIMIT_THRESHOLD,
 } from '@lifegrid/agent';
 import { auth } from '@/auth';
 
 const VALID_MODEL_IDS = new Set(AVAILABLE_MODELS.map((m) => m.id));
+const VALID_APPROVAL_THRESHOLDS = new Set<number>(APPROVAL_THRESHOLD_OPTIONS);
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { scenarioId = 'denver', customPrompt, budgetCap = 4000, mode = 'scripted', model } = body;
+    const { scenarioId = 'denver', customPrompt, budgetCap = 4000, mode = 'scripted', model, approvalThreshold } = body;
 
     if (mode === 'live') {
       // Cost control (docs/COST_OPTIMIZATION.md #7): scripted mode stays
@@ -34,6 +37,17 @@ export async function POST(req: NextRequest) {
       const resolvedModel =
         typeof model === 'string' && model !== AUTO_MODEL && VALID_MODEL_IDS.has(model) ? model : undefined;
 
+      // Settings screen — how much a single action can cost before
+      // FinanceAgent's request_human_approval tool has to pause and ask
+      // (tools.ts reads this same value back out of session state below).
+      // Falls back to the $100 default for anything not in the fixed
+      // preset list, rather than trusting an arbitrary client-supplied
+      // number.
+      const resolvedApprovalThreshold =
+        typeof approvalThreshold === 'number' && VALID_APPROVAL_THRESHOLDS.has(approvalThreshold)
+          ? approvalThreshold
+          : SPEND_LIMIT_THRESHOLD;
+
       // If the user signed in with Google (Sidebar's "Connect Google
       // Calendar"), CalendarAgent's tool picks this token up from session
       // state and calls the real Calendar API instead of its simulated
@@ -48,6 +62,7 @@ export async function POST(req: NextRequest) {
           budgetCap,
           googleCalendarAccessToken: userSession?.calendarAccessToken,
           model: resolvedModel,
+          approvalThreshold: resolvedApprovalThreshold,
         },
       });
 
@@ -57,7 +72,7 @@ export async function POST(req: NextRequest) {
         newMessage: { role: 'user', parts: [{ text: customPrompt || 'Plan Denver Trip' }] },
       });
 
-      return streamAdkEvents(events, sessionId);
+      return streamAdkEvents(events, sessionId, false, resolvedApprovalThreshold);
     }
 
     // Scripted branch — unchanged existing simulation.

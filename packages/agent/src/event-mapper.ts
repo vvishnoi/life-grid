@@ -1,6 +1,6 @@
 import { EventType, toStructuredEvents, isFinalResponse, type Event } from '@google/adk';
 import { TelemetryLog, ApprovalItem } from './types.js';
-import { PolicyEngine } from './gateway/policy-engine.js';
+import { PolicyEngine, SPEND_LIMIT_THRESHOLD } from './gateway/policy-engine.js';
 import { SECURITY_BLOCK_PRIMARY_MESSAGE, SECURITY_BLOCK_SKIP_MESSAGE } from './gateway/security-gate.js';
 
 // ADK agent `name`s don't match the registry ids used by the frontend for
@@ -62,8 +62,20 @@ interface OriginalApprovalArgs {
  * `adk_request_confirmation` tool call (see ADK's llm_agent.js /
  * functions.js — the framework yields this in place of the tool's own
  * result once `tool_context.requestConfirmation()` is called).
+ *
+ * `approvalThreshold` re-derives the same PolicyCheckResult the
+ * request_human_approval tool itself already computed (tools.ts) — this is
+ * purely for the display copy on the approval_required log below, so it
+ * must be given the SAME threshold the tool used, or the card's reason
+ * text would cite the wrong number even though the actual gating decision
+ * (already made by the tool) was correct.
  */
-export function mapAdkEventToTelemetryLogs(event: Event, sessionId: string, isResume = false): TelemetryLog[] {
+export function mapAdkEventToTelemetryLogs(
+  event: Event,
+  sessionId: string,
+  isResume = false,
+  approvalThreshold: number = SPEND_LIMIT_THRESHOLD
+): TelemetryLog[] {
   const logs: TelemetryLog[] = [];
 
   for (const structured of toStructuredEvents(event)) {
@@ -135,6 +147,7 @@ export function mapAdkEventToTelemetryLogs(event: Event, sessionId: string, isRe
               summary: originalArgs.summary,
               amount: originalArgs.amount,
               vendor: originalArgs.vendor,
+              threshold: approvalThreshold,
             });
             const approvalItem: ApprovalItem = {
               id: call.id,

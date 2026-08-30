@@ -18,7 +18,7 @@ const PRESET_SCENARIOS: (GoalScenario & { icon: React.ElementType })[] = [
     title: '5-day Denver family trip',
     prompt: 'Plan a 5-day family trip to Denver under $4,000. Dislike hotels far from downtown. Daughter has nut allergy.',
     budgetCap: 4000,
-    description: 'Watch flights, hotels, activities, and a calendar check all happen at once, with anything over $100 stopping for your approval.',
+    description: 'Watch flights, hotels, activities, and a calendar check all happen at once, with high-cost items stopping for your approval (threshold set in Settings).',
     badge: 'Example',
     icon: Plane,
   },

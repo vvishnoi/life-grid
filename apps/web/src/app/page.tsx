@@ -11,7 +11,7 @@ import { ActivityHistory, type PastRun } from '@/components/ActivityHistory';
 import { ApprovalCenterModal } from '@/components/ApprovalCenterModal';
 import { MemoryBankView } from '@/components/MemoryBankView';
 import { SettingsView } from '@/components/SettingsView';
-import { ENTERPRISE_AGENT_REGISTRY, TelemetryLog, ApprovalItem, MemoryItem, AgentInfo, geminiModel, buildScriptedFinalPlan } from '@lifegrid/agent/client';
+import { ENTERPRISE_AGENT_REGISTRY, TelemetryLog, ApprovalItem, MemoryItem, AgentInfo, geminiModel, buildScriptedFinalPlan, SPEND_LIMIT_THRESHOLD } from '@lifegrid/agent/client';
 import { consumeOrchestrationStream } from '@/lib/adk-client';
 import type { OrchestrationMode } from '@/components/GoalInputSection';
 
@@ -53,6 +53,10 @@ export default function LifeGridDashboard() {
   // Defaults to the cheap Lite tier, not Auto, so a first-time user's
   // spend stays predictable until they opt into something else.
   const [model, setModel] = useState<string>(geminiModel);
+  // Live-mode spend approval threshold — persisted the same way. Defaults
+  // to SPEND_LIMIT_THRESHOLD ($100), matching the Policy Engine's own
+  // default for a session that never touches Settings.
+  const [approvalThreshold, setApprovalThreshold] = useState<number>(SPEND_LIMIT_THRESHOLD);
   // What the *current* run's goal/mode was, so it can be archived into
   // pastRuns once the next run starts and overwrites `logs`. A ref, not
   // state — purely bookkeeping for the next handleLaunchGoal call, doesn't
@@ -133,6 +137,23 @@ export default function LifeGridDashboard() {
     }
   }, [model]);
 
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('lifegrid_approval_threshold');
+      if (saved) setApprovalThreshold(Number(saved));
+    } catch (err) {
+      console.warn('Approval threshold preference load:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('lifegrid_approval_threshold', String(approvalThreshold));
+    } catch (err) {
+      console.warn('Approval threshold preference save:', err);
+    }
+  }, [approvalThreshold]);
+
   // Records a newly-arrived approval card's batch membership (see
   // ApprovalItem.batchId) before adding it to visible pendingApprovals.
   const registerApprovalBatch = (item: ApprovalItem) => {
@@ -178,7 +199,7 @@ export default function LifeGridDashboard() {
         const response = await fetch('/api/orchestrate', {
           method: 'POST',
           headers: LIVE_MODE_HEADERS,
-          body: JSON.stringify({ customPrompt: prompt, budgetCap, scenarioId, mode: 'live', model })
+          body: JSON.stringify({ customPrompt: prompt, budgetCap, scenarioId, mode: 'live', model, approvalThreshold })
         });
 
         if (!response.ok) {
@@ -513,7 +534,14 @@ export default function LifeGridDashboard() {
             {view === 'memory' && (
               <MemoryBankView memories={memories} onAddMemory={handleAddMemory} onDeleteMemory={handleDeleteMemory} />
             )}
-            {view === 'settings' && <SettingsView model={model} onModelChange={setModel} />}
+            {view === 'settings' && (
+              <SettingsView
+                model={model}
+                onModelChange={setModel}
+                approvalThreshold={approvalThreshold}
+                onApprovalThresholdChange={setApprovalThreshold}
+              />
+            )}
           </div>
         </main>
       </div>
