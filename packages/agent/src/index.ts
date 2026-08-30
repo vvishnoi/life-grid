@@ -54,6 +54,7 @@ export { ENTERPRISE_AGENT_REGISTRY, getAgentById } from './registry.js';
 
 // ── Zero-cost scripted demo mode (FR-9) ─────────────────────────────────
 export { PREDEFINED_SCENARIOS, scriptedDemoEngine, type PredefinedScenarioData } from './scripted-demo.js';
+export { buildScriptedFinalPlan } from './scripted-final-plan.js';
 
 // ── Shared data contracts ───────────────────────────────────────────────
 export * from './types.js';

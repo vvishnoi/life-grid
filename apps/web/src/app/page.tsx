@@ -11,7 +11,7 @@ import { ActivityHistory, type PastRun } from '@/components/ActivityHistory';
 import { ApprovalCenterModal } from '@/components/ApprovalCenterModal';
 import { MemoryBankView } from '@/components/MemoryBankView';
 import { SettingsView } from '@/components/SettingsView';
-import { ENTERPRISE_AGENT_REGISTRY, TelemetryLog, ApprovalItem, MemoryItem, AgentInfo, geminiModel } from '@lifegrid/agent/client';
+import { ENTERPRISE_AGENT_REGISTRY, TelemetryLog, ApprovalItem, MemoryItem, AgentInfo, geminiModel, buildScriptedFinalPlan } from '@lifegrid/agent/client';
 import { consumeOrchestrationStream } from '@/lib/adk-client';
 import type { OrchestrationMode } from '@/components/GoalInputSection';
 
@@ -76,6 +76,15 @@ export default function LifeGridDashboard() {
   // same reason as the two above — items are removed from `pendingApprovals`
   // as each card is clicked, before the whole batch is complete.
   const batchItemDetailsRef = useRef<Record<string, ApprovalItem>>({});
+
+  // Scripted-mode equivalent of the batch refs above — how many approval
+  // cards this canned scenario has and the decisions collected so far, so
+  // the final plan (buildScriptedFinalPlan) only gets built once every card
+  // has actually been resolved, instead of playing on a fixed timer
+  // regardless of what's been clicked.
+  const scriptedApprovalTotalRef = useRef(0);
+  const scriptedDecisionsRef = useRef<{ title: string; amount: number; action: 'approve' | 'reject' }[]>([]);
+  const scriptedBudgetCapRef = useRef(0);
 
   // Load initial memories
   useEffect(() => {
@@ -159,6 +168,9 @@ export default function LifeGridDashboard() {
     batchMembersRef.current = {};
     batchDecisionsRef.current = {};
     batchItemDetailsRef.current = {};
+    scriptedApprovalTotalRef.current = 0;
+    scriptedDecisionsRef.current = [];
+    scriptedBudgetCapRef.current = budgetCap;
     setActiveAgentId('orchestrator');
 
     if (mode === 'live') {
@@ -233,6 +245,7 @@ export default function LifeGridDashboard() {
       if (!data.success) throw new Error(data.error);
 
       const steps = data.steps || [];
+      scriptedApprovalTotalRef.current = steps.filter((s: { approvalItem?: unknown }) => s.approvalItem).length;
       for (let i = 0; i < steps.length; i++) {
         const step = steps[i];
         setActiveAgentId(step.agentId);
@@ -372,10 +385,11 @@ export default function LifeGridDashboard() {
 
     // Scripted mode: no real run to resume, just log the decision. Not
     // 'execution_success' — that type is reserved for the one real final
-    // plan (already posted earlier in this same canned run); tagging a
-    // small per-item "transaction completed" note the same way let it
-    // overwrite the actual trip summary in the pinned "Your plan is ready"
-    // card, since that card just shows the most recent execution_success.
+    // plan, built below once every card in this run has been decided;
+    // tagging a small per-item "transaction completed" note the same way
+    // would let it overwrite the actual trip summary in the pinned
+    // "Your plan is ready" card, since that card just shows the most
+    // recent execution_success.
     setLogs(prev => [
       action === 'approve'
         ? {
@@ -404,6 +418,27 @@ export default function LifeGridDashboard() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ approvalId: id, action })
     });
+
+    // Only build the final plan once every approval card from this run has
+    // actually been decided — not on a fixed timer regardless of clicks
+    // (the bug this replaced). Built from the real decisions collected
+    // here, so a decline is reflected in the output instead of silently
+    // treated as approved.
+    scriptedDecisionsRef.current = [...scriptedDecisionsRef.current, { title: item.title, amount: item.amount, action }];
+    if (scriptedDecisionsRef.current.length >= scriptedApprovalTotalRef.current) {
+      const finalMessage = buildScriptedFinalPlan(scriptedDecisionsRef.current, scriptedBudgetCapRef.current);
+      setLogs(prev => [
+        {
+          id: `log-final-${Date.now()}`,
+          timestamp: new Date().toLocaleTimeString(),
+          agentId: 'orchestrator',
+          agentName: 'Goal Orchestrator',
+          type: 'execution_success',
+          message: finalMessage
+        },
+        ...prev
+      ]);
+    }
   };
 
   const handleApproveAction = (id: string) => resolveApproval(id, 'approve');

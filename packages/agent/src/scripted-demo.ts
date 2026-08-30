@@ -148,53 +148,17 @@ export const PREDEFINED_SCENARIOS: Record<string, PredefinedScenarioData> = {
           reason: 'Expenditure of $145 exceeds $100 threshold.'
         },
         delayMs: 800
-      },
-      {
-        agentId: 'orchestrator',
-        agentName: 'Goal Orchestrator',
-        type: 'thought',
-        message: 'Trip plan assembled — 3 items are waiting in the Approval Center before this can be finalized.',
-        delayMs: 500
-      },
-      // The step above is a mid-run status, not the finish line — it fires
-      // before any approval decision exists. This is the actual finish
-      // line: the only 'execution_success' step in this scenario, so it's
-      // what the hero "Your plan is ready" card pins. Written to read like
-      // a genuine post-approval write-up (not just a status update) since,
-      // unlike Live mode, scripted mode has no real synthesizeFinalPlan()
-      // call to generate one — this IS the final content, not a stand-in.
-      {
-        agentId: 'orchestrator',
-        agentName: 'Goal Orchestrator',
-        type: 'execution_success',
-        message: `# Trip Plan: 5-Day Denver Family Getaway
-
-Your family trip to Denver is fully planned, and every flagged item has been reviewed.
-
-### 1. Trip Overview
-- **Destination:** Denver, Colorado
-- **Dates:** September 15 – September 20 (5 days)
-- **Travelers:** Family of 4
-- **Special needs:** Daughter's nut allergy accounted for in all dining recommendations; lodging kept within 3 miles of downtown per your preference.
-
-### 2. Approved Items
-| Item | Vendor | Cost |
-| :--- | :--- | ---: |
-| Hyatt Regency Denver Downtown (4 nights) | Hyatt Regency Denver | $1,250 |
-| Non-stop roundtrip flights (family of 4) | United Airlines | $1,480 |
-| Family elevation jackets (2) | REI Outfitters | $145 |
-
-### 3. Budget Summary
-- Lodging: $1,250
-- Flights: $1,480
-- Gear: $145
-- **Total: $2,875** — $1,125 under your $4,000 cap
-
-### 4. Next Steps
-- Denver Museum of Nature & Science and the Denver Botanic Gardens are lined up, with nut-free dining verified nearby.
-- Calendar holds are placed for Sept 15–20 — confirm with your household before finalizing.`,
-        delayMs: 400
       }
+      // Deliberately nothing after this — the run ends once the last
+      // approval card is up, same as Live mode. An earlier version of this
+      // scenario ended with a canned 'execution_success' step that played
+      // automatically on a timer regardless of what the user clicked,
+      // which was two bugs at once: the "final" plan showed up before any
+      // approval decision existed, and it always listed every item as
+      // approved even if the user had declined one. The real finish line
+      // now only gets built after every card is actually resolved — see
+      // buildScriptedFinalPlan below, called from apps/web's resolveApproval
+      // once the approval count matches this scenario's total.
     ]
   },
   injection_test: {
